@@ -1,0 +1,50 @@
+{
+  "name": "pontte-capital",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "clean": "powershell -Command \"Get-Process | Where-Object { $_.ProcessName -eq 'node' } | Stop-Process -Force -ErrorAction SilentlyContinue; Remove-Item -Path '.next' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'node_modules/.cache' -Recurse -Force -ErrorAction SilentlyContinue; Write-Host 'Cache limpo com sucesso!'\"",
+    "dev:clean": "npm run clean && npm run dev",
+    "dev:fresh": "npm run clean && npm run build && npm run dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio --port 5555"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@prisma/adapter-pg": "^7.2.0",
+    "@prisma/client": "^7.3.0",
+    "lucide-react": "^0.344.0",
+    "next": "^14.2.0",
+    "pdfjs-dist": "^5.4.530",
+    "pdfmake": "^0.3.3",
+    "pg": "^8.17.1",
+    "prisma": "^7.3.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-pdf": "^10.3.0",
+    "react-photo-sphere-viewer": "^6.2.3",
+    "react-zoom-pan-pinch": "^3.7.0",
+    "xlsx": "^0.18.5",
+    "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.4.18",
+    "dotenv": "^17.2.3",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.3"
+  }
+}

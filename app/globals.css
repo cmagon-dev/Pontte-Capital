@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+  }
+
+  * {
+    @apply border-slate-800;
+  }
+
+  body {
+    @apply bg-slate-950 text-slate-100;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  /* Custom Scrollbar Styles - Modern Design */
+  /* Webkit browsers (Chrome, Safari, Edge) */
+  *::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: rgb(15 23 42); /* slate-900 */
+    border-radius: 6px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgb(51 65 85), rgb(71 85 105)); /* slate-700 to slate-600 */
+    border-radius: 6px;
+    border: 2px solid rgb(15 23 42); /* slate-900 */
+    transition: background 0.2s ease;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgb(71 85 105), rgb(100 116 139)); /* slate-600 to slate-500 */
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(180deg, rgb(100 116 139), rgb(148 163 184)); /* slate-500 to slate-400 */
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: rgb(15 23 42); /* slate-900 */
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(51 65 85) rgb(15 23 42); /* slate-700 slate-900 */
+  }
+
+  /* Refinamento para elementos com scroll interno (tabelas, etc.) */
+  .overflow-x-auto::-webkit-scrollbar,
+  .overflow-y-auto::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-thumb,
+  .overflow-y-auto::-webkit-scrollbar-thumb {
+    border-width: 1px;
+  }
+}
+
+@layer components {
+  .table-engineering {
+    @apply w-full border-collapse text-sm;
+  }
+
+  .table-engineering thead {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  .table-engineering th {
+    @apply bg-slate-900 text-slate-300 font-semibold px-4 py-2 border border-slate-700 text-left;
+  }
+
+  .table-engineering td {
+    @apply px-4 py-2 border border-slate-800 text-slate-200;
+  }
+
+  .table-engineering .number-cell {
+    @apply font-mono text-right;
+  }
+
+  .table-engineering .currency-cell {
+    @apply font-mono text-right text-green-400;
+  }
+
+  .tab-button {
+    @apply px-4 py-2 text-sm font-medium border-b-2 transition-colors;
+  }
+
+  .tab-button-active {
+    @apply border-blue-500 text-blue-400;
+  }
+
+  .tab-button-inactive {
+    @apply border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600;
+  }
+
+}

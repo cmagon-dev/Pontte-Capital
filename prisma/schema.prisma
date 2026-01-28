@@ -1,0 +1,1265 @@
+// schema.prisma - CORRIGIDO PARA FINTECH
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --------------------------------------------------------
+// ENGENHARIA (O Lastro Físico)
+// --------------------------------------------------------
+
+model Construtora {
+  id                String      @id @default(uuid())
+  codigo            String      @unique // CD-001, CD-002, etc
+  razaoSocial       String
+  cnpj              String      @unique
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  cep               String?
+  cidade            String?
+  contaBancaria     Json?
+  email             String?
+  endereco          String?
+  estado            String?
+  inscricaoEstadual String?
+  nomeFantasia      String?
+  socios            Json?
+  telefone          String?
+  obras             Obra[]
+  operacoes         Operacao[]
+  documentos        Documento[]
+  // Cadastros Financeiros
+  credores          Credor[]
+  contasBancarias   ContaBancaria[]
+  planosContas      PlanoContas[]
+  centrosCusto      CentroCusto[]
+}
+
+model Fundo {
+  id                String         @id @default(uuid())
+  codigo            String         @unique // CS-001, CS-002, etc
+  razaoSocial       String
+  cnpj              String         @unique
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  cep               String?
+  cidade            String?
+  contaBancaria     Json?
+  email             String?
+  endereco          String?
+  estado            String?
+  inscricaoEstadual String?
+  nomeFantasia      String?
+  socios            Json?
+  telefone          String?
+  documentos        Documento[]
+  vinculosObras     VinculoFundo[] // Vínculos com obras
+}
+
+model Fiador {
+  id                  String          @id @default(uuid())
+  codigo              String          @unique // AV-001, AV-002, etc
+  tipo                String // 'PF' ou 'PJ'
+  // Campo único para CPF ou CNPJ (dependendo do tipo)
+  cpfCnpj             String          @unique // CPF (11 dígitos) ou CNPJ (14 dígitos) - sempre limpo (sem formatação)
+  // Campos para Pessoa Física (usar nome, cpfCnpj já tem CPF)
+  nome                String // Nome completo (PF) ou Razão Social (PJ)
+  rg                  String? // RG (se PF)
+  estadoCivil         String? // Solteiro, Casado, Divorciado, Viúvo (se PF)
+  dataNascimento      DateTime? // Data de nascimento (se PF)
+  // Campos para Pessoa Jurídica (usar nome como razaoSocial, cpfCnpj já tem CNPJ)
+  nomeFantasia        String? // Nome Fantasia (se PJ)
+  inscricaoEstadual   String? // IE (se PJ)
+  // Campos comuns
+  cep                 String?
+  cidade              String?
+  email               String?
+  endereco            String?
+  estado              String?
+  telefone            String?
+  // Configurações
+  aprovadorFinanceiro Boolean         @default(false)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  documentos          Documento[]
+  bens                Bem[]
+  vinculosObras       VinculoFiador[] // Vínculos com obras
+}
+
+model Contratante {
+  id                String      @id @default(uuid())
+  codigo            String      @unique // SC-001, SC-002, etc
+  razaoSocial       String
+  cnpj              String      @unique
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  cep               String?
+  cidade            String?
+  contaBancaria     Json?
+  email             String?
+  endereco          String?
+  estado            String?
+  inscricaoEstadual String?
+  nomeFantasia      String?
+  socios            Json?
+  telefone          String?
+  documentos        Documento[]
+  obras             Obra[] // Relação inversa com Obra
+}
+
+model FonteRecurso {
+  id             String   @id @default(uuid())
+  codigo         String   @unique // FR-001, FR-002, etc
+  nome           String
+  tipo           String // CONVENIO, FINANCIAMENTO, PROPRIO, MISTO
+  esfera         String // FEDERAL, ESTADUAL, MUNICIPAL, PRIVADO
+  orgao          String? // Para convênios
+  instituicao    String? // Para financiamentos
+  numeroProcesso String?
+  status         String   @default("ATIVO") // ATIVO, EM_ANDAMENTO, CONCLUIDO, CANCELADO
+  observacoes    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  obras          Obra[] // Relação inversa com obras
+}
+
+model Medicao {
+  id             String     @id @default(uuid())
+  obraId         String
+  numero         Int
+  periodoInicio  DateTime
+  periodoFim     DateTime
+  dataAprovacao  DateTime?
+  valorMedido    Decimal    @db.Decimal(18, 2)
+  valorAcumulado Decimal    @db.Decimal(18, 2)
+  saldoContrato  Decimal    @db.Decimal(18, 2)
+  status         String
+  obra           Obra       @relation(fields: [obraId], references: [id])
+  operacoes      Operacao[]
+
+  @@unique([obraId, numero])
+}
+
+model Obra {
+  id                    String                 @id @default(uuid())
+  codigo                String // CT-001, CT-002, etc (por construtora)
+  nome                  String
+  construtoraId         String
+  contratanteId         String? // Relação com o contratante pagador
+  // Localização
+  endereco              String?
+  cidade                String?
+  estado                String?
+  latitude              String?
+  longitude             String?
+  // Vigência do Contrato
+  prazoMeses            Int? // Prazo de vigência do contrato em meses
+  dataInicio            DateTime? // Data de início da vigência do contrato
+  dataFim               DateTime? // Data de fim da vigência do contrato
+  // Execução da Obra
+  prazoExecucaoMeses    Int? // Prazo de execução da obra em meses
+  dataInicioExecucao    DateTime? // Data de início da execução da obra
+  dataFimExecucao       DateTime? // Data prevista de conclusão da obra
+  // Valores
+  valorContrato         Decimal                @db.Decimal(18, 2)
+  // Documentação Técnica
+  cno                   String? // Cadastro Nacional de Obras
+  art                   String? // Anotação de Responsabilidade Técnica
+  alvara                String? // Alvará da obra
+  // Recurso Financeiro
+  recursoFinanceiro     String? // Campo legado (será removido)
+  fonteRecursoId        String? // ID da fonte de recurso (FK)
+  // Status
+  status                String                 @default("NAO_INICIADA") // NAO_INICIADA, EM_ANDAMENTO, CONCLUIDA, PARALISADA, CANCELADA
+  // Timestamps
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  // Relações
+  medicoes              Medicao[]
+  documentos            Documento[] // Relação com documentos
+  aditivos              Aditivo[] // Relação com aditivos
+  reajustes             Reajuste[] // Relação com reajustes
+  empenhos              Empenho[] // Relação com empenhos
+  construtora           Construtora            @relation(fields: [construtoraId], references: [id])
+  contratante           Contratante?           @relation(fields: [contratanteId], references: [id])
+  fonteRecurso          FonteRecurso?          @relation(fields: [fonteRecursoId], references: [id])
+  vinculoFundo          VinculoFundo? // Relação 1:1 com fundo investidor
+  vinculosFiadores      VinculoFiador[] // Relação 1:N com fiadores
+  versoesOrcamento      VersaoOrcamento[] // Versões do orçamento (planilha contratual)
+  versoesCustoOrcado    VersaoCustoOrcado[] // Versões de custos orçados
+  versoesCategorizacao  VersaoCategorizacao[] // Versões de categorização
+  versoesVisaoGerencial VersaoVisaoGerencial[] // Versões de visão gerencial
+  plantasBaixas         PlantaBaixa[] // Plantas baixas da obra (Registros 360º)
+  previsoesMedicao      PrevisaoMedicao[] // Previsões de medição
+  historicoVersoesMedicao HistoricoVersaoMedicao[] // Histórico de versões de medição
+  mapeamentosItemVersao MapeamentoItemVersao[] // Mapeamentos de itens entre versões
+}
+
+// Aditivos Contratuais
+model Aditivo {
+  id               String      @id @default(uuid())
+  obraId           String
+  numero           Int // Número sequencial do aditivo (1, 2, 3...)
+  tipo             String // 'VALOR' ou 'PRAZO'
+  dataAssinatura   DateTime?
+  justificativa    String?     @db.Text
+  // Campos para Aditivo de Valor
+  valorAditivo     Decimal?    @db.Decimal(18, 2) // Valor adicionado (positivo) ou suprimido (negativo)
+  valorGlosa       Decimal?    @db.Decimal(18, 2) // Valor de glosas
+  // Campos para Aditivo de Prazo
+  tipoUnidadePrazo String? // 'DIAS' ou 'MESES'
+  prazoVigencia    Int? // Prazo adicional de vigência
+  prazoExecucao    Int? // Prazo adicional de execução
+  // Documento (campos legados - mantidos para compatibilidade)
+  nomeArquivo      String?
+  caminhoArquivo   String?
+  // Status
+  status           String      @default("EM_ELABORACAO") // EM_ELABORACAO, APROVADO, REJEITADO
+  // Timestamps
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  // Relações
+  obra             Obra        @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  documentos       Documento[] // Múltiplos documentos anexados
+
+  @@unique([obraId, numero]) // Garantir que o número seja único por obra
+}
+
+// Reajustes Contratuais (Apostilamentos)
+model Reajuste {
+  id             String      @id @default(uuid())
+  obraId         String
+  numero         Int // Número sequencial do reajuste (1, 2, 3...)
+  dataBase       String // Data base no formato YYYY-MM (ex: "2024-01")
+  indice         String // 'INCC', 'IPCA', 'IGPM', 'INPC'
+  percentual     Decimal     @db.Decimal(5, 2) // Percentual acumulado (ex: 5.20)
+  valorReajuste  Decimal     @db.Decimal(18, 2) // Valor do reajuste
+  dataAplicacao  DateTime // Data de aplicação do reajuste
+  observacoes    String?     @db.Text
+  // Documento (campo legado para compatibilidade)
+  nomeArquivo    String?
+  caminhoArquivo String?
+  // Status
+  status         String      @default("PENDENTE") // PENDENTE, APLICADO, CANCELADO
+  // Timestamps
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  // Relações
+  obra           Obra        @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  documentos     Documento[] // Múltiplos documentos (memória de cálculo, etc)
+
+  @@unique([obraId, numero]) // Garantir que o número seja único por obra
+}
+
+// Empenhos (Notas de Empenho - Lastro Orçamentário)
+model Empenho {
+  id             String      @id @default(uuid())
+  obraId         String
+  numero         Int // Número sequencial do empenho (1, 2, 3...)
+  numeroNE       String // Número da Nota de Empenho (ex: NE-2024-001)
+  dataEmissao    DateTime // Data de emissão da NE
+  valor          Decimal     @db.Decimal(18, 2) // Valor empenhado
+  saldoAtual     Decimal     @default(0) @db.Decimal(18, 2) // Saldo disponível (calculado)
+  tipo           String // 'ORIGINAL' ou 'REFORCO'
+  alertaMinimo   Decimal?    @db.Decimal(18, 2) // Valor mínimo para alerta de saldo
+  observacoes    String?     @db.Text
+  // Documento (campo legado para compatibilidade)
+  nomeArquivo    String?
+  caminhoArquivo String?
+  // Status
+  status         String      @default("ATIVO") // ATIVO, ESGOTADO, CANCELADO
+  // Timestamps
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  // Relações
+  obra           Obra        @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  documentos     Documento[] // Múltiplos documentos anexados
+
+  @@unique([obraId, numero]) // Garantir que o número seja único por obra
+}
+
+// Vínculo entre Obra e Fundo (1:1 - apenas 1 fundo por obra)
+model VinculoFundo {
+  id           String   @id @default(uuid())
+  obraId       String   @unique // Cada obra pode ter apenas 1 fundo vinculado
+  fundoId      String
+  percentual   Decimal  @db.Decimal(5, 2) // Ex: 100.00
+  valorAlocado Decimal  @db.Decimal(18, 2)
+  observacoes  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  // Relações
+  obra         Obra     @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  fundo        Fundo    @relation(fields: [fundoId], references: [id])
+}
+
+// Vínculo entre Obra e Fiador (1:N - múltiplos fiadores por obra)
+model VinculoFiador {
+  id                 String               @id @default(uuid())
+  obraId             String
+  fiadorId           String
+  percentualGarantia Decimal              @db.Decimal(5, 2) // Ex: 50.00
+  valorGarantia      Decimal              @db.Decimal(18, 2)
+  observacoes        String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  // Relações
+  obra               Obra                 @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  fiador             Fiador               @relation(fields: [fiadorId], references: [id])
+  bensVinculados     VinculoBemGarantia[] // Múltiplos bens por fiador
+}
+
+// Vínculo entre Fiador e seus Bens de Garantia na Obra
+model VinculoBemGarantia {
+  id              String        @id @default(uuid())
+  vinculoFiadorId String
+  bemId           String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  // Relações
+  vinculoFiador   VinculoFiador @relation(fields: [vinculoFiadorId], references: [id], onDelete: Cascade)
+  bem             Bem           @relation(fields: [bemId], references: [id])
+}
+
+model Operacao {
+  id              String      @id @default(uuid())
+  codigo          String      @unique
+  construtoraId   String
+  medicaoId       String
+  valorSolicitado Decimal     @db.Decimal(18, 2)
+  taxaJurosMensal Decimal     @db.Decimal(10, 4)
+  taxaFlat        Decimal     @db.Decimal(10, 4)
+  valorDesagio    Decimal     @db.Decimal(18, 2)
+  valorLiquido    Decimal     @db.Decimal(18, 2)
+  dataOperacao    DateTime    @default(now())
+  dataVencimento  DateTime
+  status          String
+  construtora     Construtora @relation(fields: [construtoraId], references: [id])
+  medicao         Medicao     @relation(fields: [medicaoId], references: [id])
+}
+
+// --------------------------------------------------------
+// DOCUMENTOS E COMPLIANCE
+// --------------------------------------------------------
+
+model Bem {
+  id            String               @id @default(uuid())
+  fiadorId      String
+  tipo          String // 'Imóvel', 'Veículo', 'Investimentos', 'Outros'
+  descricao     String
+  valor         Decimal              @db.Decimal(18, 2) // Valor avaliado
+  rendaMensal   Decimal?             @db.Decimal(18, 2) // Renda mensal (para imóveis alugados, por exemplo)
+  // Campos específicos para Imóveis
+  endereco      String?
+  cidade        String?
+  estado        String?
+  cep           String?
+  matricula     String? // Matrícula do imóvel
+  cartorio      String? // Cartório de registro
+  // Status do bem
+  status        String               @default("Livre") // 'Livre', 'Penhorado', 'Hipotecado'
+  observacoes   String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  fiador        Fiador               @relation(fields: [fiadorId], references: [id], onDelete: Cascade)
+  documentos    Documento[]
+  vinculosObras VinculoBemGarantia[] // Vínculos com obras
+}
+
+model Documento {
+  id             String       @id @default(uuid())
+  construtoraId  String?
+  fundoId        String?
+  fiadorId       String?
+  contratanteId  String?
+  bemId          String?
+  obraId         String? // Vinculação a uma obra
+  aditivoId      String? // Vinculação a um aditivo
+  reajusteId     String? // Vinculação a um reajuste
+  empenhoId      String? // Vinculação a um empenho
+  categoria      String // 'Jurídico', 'Fiscal', 'Financeiro'
+  tipo           String // Ex: 'Contrato Social', 'CND Federal', etc.
+  nomeArquivo    String // Nome original do arquivo
+  caminhoArquivo String // Caminho do arquivo no servidor
+  dataUpload     DateTime     @default(now())
+  dataValidade   DateTime?
+  observacoes    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  construtora    Construtora? @relation(fields: [construtoraId], references: [id], onDelete: Cascade)
+  fundo          Fundo?       @relation(fields: [fundoId], references: [id], onDelete: Cascade)
+  fiador         Fiador?      @relation(fields: [fiadorId], references: [id], onDelete: Cascade)
+  contratante    Contratante? @relation(fields: [contratanteId], references: [id], onDelete: Cascade)
+  bem            Bem?         @relation(fields: [bemId], references: [id], onDelete: Cascade)
+  obra           Obra?        @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  aditivo        Aditivo?     @relation(fields: [aditivoId], references: [id], onDelete: Cascade)
+  reajuste       Reajuste?    @relation(fields: [reajusteId], references: [id], onDelete: Cascade)
+  empenho        Empenho?     @relation(fields: [empenhoId], references: [id], onDelete: Cascade)
+}
+
+// --------------------------------------------------------
+// ORÇAMENTO (Máquina de Estados - Waterfall)
+// --------------------------------------------------------
+
+// Versão do Orçamento (Máquina de Estados)
+model VersaoOrcamento {
+  id                   String                @id @default(uuid())
+  numero               Int // Número sequencial (1, 2, 3...)
+  nome                 String // Ex: "Versão Inicial", "Revisão 01 - Aditivo"
+  fase                 FaseOrcamento         @default(PLANILHA_CONTRATUAL) // Fase atual da versão
+  status               StatusVersao          @default(ATIVA) // Apenas uma ativa por obra
+  tipo                 TipoVersao // BASELINE ou REVISAO
+  dataBase             DateTime? // Data base da versão (opcional)
+  observacoes          String?
+  obraId               String
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  // Relações
+  obra                 Obra                  @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  itens                ItemOrcamento[] // Itens da planilha contratual + categorização
+  versoesCustoOrcado   VersaoCustoOrcado[] // Versões de custos orçados baseadas nesta versão
+  versoesCategorizacao VersaoCategorizacao[] // Versões de categorização baseadas nesta versão
+  medicoesReferencia   PrevisaoMedicao[] @relation("MedicaoVersaoReferencia") // Medições que usam esta versão como referência
+  historicoVersaoAnterior HistoricoVersaoMedicao[] @relation("VersaoAnterior") // Histórico onde é a versão anterior
+  historicoVersaoNova HistoricoVersaoMedicao[] @relation("VersaoNova") // Histórico onde é a versão nova
+
+  @@unique([obraId, numero]) // Garantir que o número seja único por obra
+  @@index([obraId, status]) // Query de versão ativa por obra
+  @@index([obraId, fase]) // Query por fase
+}
+
+// Item de Orçamento (Fases 1 & 3: Planilha Contratual + Categorização)
+model ItemOrcamento {
+  id                 String            @id @default(uuid())
+  versaoId           String
+  codigo             String // Ex: "1.1.1", "2.0", "3.2.5"
+  nivel              Int // 0, 1, 2... (nível de indentação)
+  ordem              Int // Ordem de exibição dentro do mesmo nível
+  discriminacao      String // Descrição completa do serviço
+  unidade            String? // Ex: "m³", "m²", "kg", "un", "vb" (null para agrupadores)
+  quantidade         Decimal?          @db.Decimal(12, 4) // Quantidade contratada (null para agrupadores)
+  precoUnitarioVenda Decimal?          @db.Decimal(18, 2) // Preço unitário com BDI (null para agrupadores)
+  precoTotalVenda    Decimal           @db.Decimal(18, 2) // Preço Total (calculado ou persistido)
+  tipo               TipoItemOrcamento // AGRUPADOR ou ITEM
+  referencia         String? // Ex: "SINAPI-1234", "SICRO-5678"
+  parentId           String? // ID do item pai (null para itens raiz)
+  // Campos da Fase 3 (Categorização - preenchidos posteriormente)
+  etapa              String? // Ex: "INFRAESTRUTURA E CONTENÇÕES"
+  subEtapa           String? // Ex: "MOVIMENTAÇÃO DE SOLO"
+  grupoCusto         String? // Ex: "Escavação e Reaterro Mecanizado"
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  // Relações
+  versao             VersaoOrcamento   @relation(fields: [versaoId], references: [id], onDelete: Cascade)
+
+  @@unique([versaoId, codigo]) // Garantir que o código seja único por versão
+  @@index([versaoId]) // Query de itens por versão
+  @@index([versaoId, nivel]) // Query por nível hierárquico
+  @@index([versaoId, parentId]) // Navegação hierárquica
+  @@index([versaoId, tipo]) // Filtro por tipo (agrupador/item)
+}
+
+// Versão de Custos Orçados (separado de VersaoOrcamento)
+model VersaoCustoOrcado {
+  id                    String                 @id @default(uuid())
+  numero                Int // Número sequencial (1, 2, 3...)
+  nome                  String // Nome base (vem da versão contratual)
+  numeroRevisao         Int // Número da revisão (01, 02, 03...)
+  status                StatusVersao           @default(ATIVA) // Apenas uma ativa por obra
+  tipo                  TipoVersao // BASELINE ou REVISAO
+  versaoContratualId    String // ID da versão contratual base
+  observacoes           String?
+  obraId                String
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  // Relações
+  obra                  Obra                   @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  versaoContratual      VersaoOrcamento        @relation(fields: [versaoContratualId], references: [id])
+  itens                 ItemCustoOrcado[] // Itens de custos orçados
+  versoesVisaoGerencial VersaoVisaoGerencial[] // Versões de visão gerencial baseadas nesta versão
+
+  @@unique([obraId, numero]) // Garantir que o número seja único por obra
+  @@index([obraId, status]) // Query de versão ativa por obra
+  @@index([versaoContratualId]) // Query por versão contratual base
+}
+
+// Item de Custos Orçados (separado de ItemOrcamento)
+model ItemCustoOrcado {
+  id                     String                      @id @default(uuid())
+  versaoCustoOrcadoId    String
+  codigo                 String // Ex: "1.1.1", "2.0", "3.2.5" (mesmo código da versão contratual)
+  nivel                  Int // 0, 1, 2... (nível de indentação)
+  ordem                  Int // Ordem de exibição dentro do mesmo nível
+  discriminacao          String // Descrição completa do serviço
+  unidade                String? // Ex: "m³", "m²", "kg", "un", "vb" (null para agrupadores)
+  quantidade             Decimal?                    @db.Decimal(12, 4) // Quantidade contratada (null para agrupadores)
+  precoUnitarioVenda     Decimal?                    @db.Decimal(18, 2) // Preço unitário com BDI (null para agrupadores)
+  precoTotalVenda        Decimal                     @db.Decimal(18, 2) // Valor Venda (Valor total dos itens da planilha contratual)
+  tipo                   TipoItemOrcamento // AGRUPADOR ou ITEM
+  referencia             String? // Ex: "SINAPI-1234", "SICRO-5678"
+  parentId               String? // ID do item pai (null para itens raiz)
+  // Campos da Fase 3 (Categorização - preenchidos posteriormente)
+  etapa                  String? // Ex: "INFRAESTRUTURA E CONTENÇÕES"
+  subEtapa               String? // Ex: "MOVIMENTAÇÃO DE SOLO"
+  grupoCusto             String? // Ex: "Escavação e Reaterro Mecanizado"
+  // Custos Unitários (R$/Un)
+  valorMaterial          Decimal                     @default(0) @db.Decimal(18, 2) // Custo MAT (R$/Un)
+  valorMaoDeObra         Decimal                     @default(0) @db.Decimal(18, 2) // Custo M.O. (R$/Un)
+  valorEquipamento       Decimal                     @default(0) @db.Decimal(18, 2) // Custo Eq/Fr (R$/Un)
+  valorVerba             Decimal                     @default(0) @db.Decimal(18, 2) // Custo Contratos (R$/Un)
+  custoUnitarioTotal     Decimal                     @default(0) @db.Decimal(18, 2) // Soma dos 4 custos unitários
+  custoTotal             Decimal                     @default(0) @db.Decimal(18, 2) // custoUnitarioTotal * quantidade do item
+  lucroProjetado         Decimal                     @default(0) @db.Decimal(18, 2) // precoTotalVenda - custoTotal
+  margem                 Decimal                     @default(0) @db.Decimal(5, 2) // (precoTotalVenda - custoTotal) / precoTotalVenda * 100
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+  // Relações
+  versaoCustoOrcado      VersaoCustoOrcado           @relation(fields: [versaoCustoOrcadoId], references: [id], onDelete: Cascade)
+  vinculosVisaoGerencial VinculoItemVisaoGerencial[] @relation("ItemCustoOrcadoVinculos") // Vínculos com itens da visão gerencial
+
+  @@unique([versaoCustoOrcadoId, codigo]) // Garantir que o código seja único por versão
+  @@index([versaoCustoOrcadoId]) // Query de itens por versão
+  @@index([versaoCustoOrcadoId, nivel]) // Query por nível hierárquico
+  @@index([versaoCustoOrcadoId, parentId]) // Navegação hierárquica
+  @@index([versaoCustoOrcadoId, tipo]) // Filtro por tipo (agrupador/item)
+}
+
+// Versão de Categorização (separado de VersaoOrcamento)
+model VersaoCategorizacao {
+  id                    String                 @id @default(uuid())
+  numero                Int // Número sequencial (1, 2, 3...)
+  nome                  String // Nome base (vem da versão contratual)
+  numeroRevisao         Int // Número da revisão (01, 02, 03...)
+  status                StatusVersao           @default(ATIVA) // Apenas uma ativa por obra
+  tipo                  TipoVersao // BASELINE ou REVISAO
+  versaoContratualId    String // ID da versão contratual base
+  observacoes           String?
+  obraId                String
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  // Relações
+  obra                  Obra                   @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  versaoContratual      VersaoOrcamento        @relation(fields: [versaoContratualId], references: [id])
+  itens                 ItemCategorizacao[] // Itens de categorização
+  versoesVisaoGerencial VersaoVisaoGerencial[] // Versões de visão gerencial baseadas nesta versão
+
+  @@unique([obraId, numero]) // Garantir que o número seja único por obra
+  @@index([obraId, status]) // Query de versão ativa por obra
+  @@index([versaoContratualId]) // Query por versão contratual base
+}
+
+// Item de Categorização (separado de ItemOrcamento)
+model ItemCategorizacao {
+  id                    String              @id @default(uuid())
+  versaoCategorizacaoId String
+  codigo                String // Ex: "1.1.1", "2.0", "3.2.5" (mesmo código da versão contratual)
+  nivel                 Int // 0, 1, 2... (nível de indentação)
+  ordem                 Int // Ordem de exibição dentro do mesmo nível
+  discriminacao         String // Descrição completa do serviço
+  unidade               String? // Ex: "m³", "m²", "kg", "un", "vb" (null para agrupadores)
+  quantidade            Decimal?            @db.Decimal(12, 4) // Quantidade contratada (null para agrupadores)
+  tipo                  TipoItemOrcamento // AGRUPADOR ou ITEM
+  referencia            String? // Ex: "SINAPI-1234", "SICRO-5678"
+  parentId              String? // ID do item pai (null para itens raiz)
+  // Campos de Categorização
+  etapa                 String? // Ex: "INFRAESTRUTURA E CONTENÇÕES"
+  subEtapa              String? // Ex: "MOVIMENTAÇÃO DE SOLO"
+  servicoSimplificado   String? // Ex: "Escavação e Reaterro Mecanizado"
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  // Relações
+  versaoCategorizacao   VersaoCategorizacao @relation(fields: [versaoCategorizacaoId], references: [id], onDelete: Cascade)
+
+  @@unique([versaoCategorizacaoId, codigo]) // Garantir que o código seja único por versão
+  @@index([versaoCategorizacaoId]) // Query de itens por versão
+  @@index([versaoCategorizacaoId, nivel]) // Query por nível hierárquico
+  @@index([versaoCategorizacaoId, parentId]) // Navegação hierárquica
+  @@index([versaoCategorizacaoId, tipo]) // Filtro por tipo (agrupador/item)
+}
+
+// Versão de EAP Gerencial (EAP Gerencial Consolidada)
+model VersaoVisaoGerencial {
+  id                    String               @id @default(uuid())
+  numero                Int // Número sequencial (1, 2, 3...)
+  nome                  String // Nome da versão
+  numeroRevisao         Int // Número da revisão (01, 02, 03...)
+  status                StatusVersao         @default(ATIVA) // Apenas uma ativa por obra
+  tipo                  TipoVersao // BASELINE ou REVISAO
+  versaoCustoOrcadoId   String // ID da versão de custos orçados base
+  versaoCategorizacaoId String // ID da versão de categorização base
+  observacoes           String?
+  obraId                String
+  // Configuração de níveis hierárquicos
+  campoNivel0           String // Ex: "etapa", "subEtapa", "servicoSimplificado"
+  campoNivel1           String? // Ex: "subEtapa", "servicoSimplificado"
+  campoNivel2           String? // Ex: "servicoSimplificado"
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  // Relações
+  obra                  Obra                 @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  versaoCustoOrcado     VersaoCustoOrcado    @relation(fields: [versaoCustoOrcadoId], references: [id])
+  versaoCategorizacao   VersaoCategorizacao  @relation(fields: [versaoCategorizacaoId], references: [id])
+  itens                 ItemVisaoGerencial[] // Itens da visão gerencial
+
+  @@unique([obraId, numero]) // Garantir que o número seja único por obra
+  @@index([obraId, status]) // Query de versão ativa por obra
+  @@index([versaoCustoOrcadoId]) // Query por versão de custos base
+  @@index([versaoCategorizacaoId]) // Query por versão de categorização base
+}
+
+// Item de Visão Gerencial (Visão Gerencial)
+model ItemVisaoGerencial {
+  id                     String                      @id @default(uuid())
+  versaoVisaoGerencialId String
+  codigo                 String // Ex: "1.0", "1.1", "1.1.1" (código hierárquico)
+  nivel                  Int // 0, 1, 2... (nível de indentação)
+  ordem                  Int // Ordem de exibição customizada pelo usuário
+  discriminacao          String // Nome da categoria (Etapa, SubEtapa ou Serviço)
+  tipo                   TipoItemOrcamento // AGRUPADOR ou ITEM
+  parentId               String? // ID do item pai (null para itens raiz)
+  // Valores agregados
+  custoMat               Decimal                     @default(0) @db.Decimal(18, 2)
+  custoMO                Decimal                     @default(0) @db.Decimal(18, 2)
+  custoContratos         Decimal                     @default(0) @db.Decimal(18, 2)
+  custoEqFr              Decimal                     @default(0) @db.Decimal(18, 2)
+  custoTotal             Decimal                     @default(0) @db.Decimal(18, 2)
+  precoTotalVenda        Decimal                     @default(0) @db.Decimal(18, 2)
+  lucroProjetado         Decimal                     @default(0) @db.Decimal(18, 2)
+  margem                 Decimal                     @default(0) @db.Decimal(5, 2)
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+  // Relações
+  versaoVisaoGerencial   VersaoVisaoGerencial        @relation(fields: [versaoVisaoGerencialId], references: [id], onDelete: Cascade)
+  vinculosItens          VinculoItemVisaoGerencial[] @relation("ItemVisaoGerencialVinculos") // Vínculos com itens da planilha de custos
+
+  @@unique([versaoVisaoGerencialId, codigo]) // Garantir que o código seja único por versão
+  @@index([versaoVisaoGerencialId]) // Query de itens por versão
+  @@index([versaoVisaoGerencialId, nivel]) // Query por nível hierárquico
+  @@index([versaoVisaoGerencialId, parentId]) // Navegação hierárquica
+  @@index([versaoVisaoGerencialId, tipo]) // Filtro por tipo (agrupador/item)
+}
+
+// Vínculo entre Item da Visão Gerencial e Item de Custo Orçado
+// Esta tabela permite que os serviços da planilha contratual sejam vinculados
+// aos agrupadores da visão gerencial sem duplicar dados
+model VinculoItemVisaoGerencial {
+  id                   String             @id @default(uuid())
+  itemVisaoGerencialId String // ID do agrupador (Serviço Simplificado - nível 2)
+  itemCustoOrcadoId    String // ID do item original da planilha de custos
+  ordem                Int // Ordem de exibição do item dentro do agrupador
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  // Relações
+  itemVisaoGerencial   ItemVisaoGerencial @relation("ItemVisaoGerencialVinculos", fields: [itemVisaoGerencialId], references: [id], onDelete: Cascade)
+  itemCustoOrcado      ItemCustoOrcado    @relation("ItemCustoOrcadoVinculos", fields: [itemCustoOrcadoId], references: [id], onDelete: Cascade)
+
+  @@unique([itemVisaoGerencialId, itemCustoOrcadoId]) // Garantir que não haja vínculos duplicados
+  @@index([itemVisaoGerencialId]) // Query de vínculos por item da visão gerencial
+  @@index([itemCustoOrcadoId]) // Query de vínculos por item de custo orçado
+}
+
+// Enums do Módulo de Orçamento
+enum FaseOrcamento {
+  PLANILHA_CONTRATUAL // Fase 1: Definir itens e preços de venda
+  CUSTOS_ORCADOS // Fase 2: Definir custos unitários
+  CATEGORIZACAO // Fase 3: Definir categorização gerencial
+  CONCLUIDO // Fase 4: Orçamento completo (gera visão gerencial)
+}
+
+enum StatusVersao {
+  ATIVA
+  OBSOLETA
+}
+
+enum TipoVersao {
+  BASELINE
+  REVISAO
+}
+
+enum TipoItemOrcamento {
+  AGRUPADOR // Fase/Etapa (sem custos unitários)
+  ITEM // Serviço executável (com custos unitários)
+}
+
+// --------------------------------------------------------
+// REGISTROS 360º
+// --------------------------------------------------------
+
+model PlantaBaixa {
+  id         String               @id @default(uuid())
+  obraId     String
+  nome       String // Ex: 'Implantação Geral', 'Térreo'
+  tipo       TipoPlanta // IMPLANTACAO ou PAVIMENTO
+  imagemUrl  String? // URL da imagem da planta
+  ordem      Int? // Para ordenação
+  setorPaiId String? // FK opcional para Setor (se preenchido, planta pertence a um setor)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  // Relações
+  obra       Obra                 @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  pontos     PontoMonitoramento[] // Pontos de captura nesta planta
+  setores    Setor[] // Setores desenhados nesta planta (se for implantação)
+  setorPai   Setor?               @relation("SetorPlantasFilhas", fields: [setorPaiId], references: [id], onDelete: SetNull)
+
+  @@index([obraId])
+  @@index([setorPaiId])
+}
+
+model Setor {
+  id            String        @id @default(uuid())
+  plantaBaixaId String // A planta onde o setor está desenhado
+  nome          String // Ex: 'Torre A'
+  cor           String? // Ex: '#00FF00'
+  x             Float // Coordenada X percentual (0-100)
+  y             Float // Coordenada Y percentual (0-100)
+  width         Float // Largura percentual (0-100)
+  height        Float // Altura percentual (0-100)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  // Relações
+  plantaBaixa   PlantaBaixa   @relation(fields: [plantaBaixaId], references: [id], onDelete: Cascade)
+  plantasFilhas PlantaBaixa[] @relation("SetorPlantasFilhas") // Plantas que pertencem a este setor
+
+  @@index([plantaBaixaId])
+}
+
+model PontoMonitoramento {
+  id            String      @id @default(uuid())
+  plantaBaixaId String
+  nome          String
+  x             Float // Coordenada X percentual (0-100)
+  y             Float // Coordenada Y percentual (0-100)
+  status        String      @default("ATIVO") // ATIVO, INATIVO
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  // Relações
+  plantaBaixa   PlantaBaixa @relation(fields: [plantaBaixaId], references: [id], onDelete: Cascade)
+  fotos         Foto360[]
+
+  @@index([plantaBaixaId])
+  @@index([status])
+}
+
+model Foto360 {
+  id                   String             @id @default(uuid())
+  pontoMonitoramentoId String
+  dataCaptura          DateTime
+  urlArquivo           String // URL do arquivo da foto 360
+  usuarioId            String? // ID do usuário que capturou
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  // Relações
+  pontoMonitoramento   PontoMonitoramento @relation(fields: [pontoMonitoramentoId], references: [id], onDelete: Cascade)
+
+  @@index([pontoMonitoramentoId])
+  @@index([dataCaptura])
+}
+
+enum TipoPlanta {
+  IMPLANTACAO // Planta de Implantação (Master Plan)
+  PAVIMENTO // Planta de Pavimento (interior)
+}
+
+// --------------------------------------------------------
+// LISTAS DE CATEGORIZAÇÃO
+// --------------------------------------------------------
+
+// Lista de Etapas (ex: "INFRAESTRUTURA E CONTENÇÕES", "SUPRAESTRUTURA")
+model Etapa {
+  id        String   @id @default(uuid())
+  nome      String   @unique // Nome único da etapa
+  ordem     Int? // Ordem de exibição (opcional)
+  ativo     Boolean  @default(true) // Se está ativa ou não
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ativo])
+  @@index([ordem])
+}
+
+// Lista de SubEtapas (ex: "MOVIMENTAÇÃO DE SOLO", "BLOCOS DE FUNDAÇÃO")
+model SubEtapa {
+  id        String   @id @default(uuid())
+  nome      String   @unique // Nome único da subetapa
+  ordem     Int? // Ordem de exibição (opcional)
+  ativo     Boolean  @default(true) // Se está ativa ou não
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ativo])
+  @@index([ordem])
+}
+
+// Lista de Serviços Simplificados (ex: "Escavação e Reaterro Mecanizado", "Concretagem")
+model ServicoSimplificado {
+  id        String   @id @default(uuid())
+  nome      String   @unique // Nome único do serviço
+  ordem     Int? // Ordem de exibição (opcional)
+  ativo     Boolean  @default(true) // Se está ativo ou não
+  
+  // Lead Times de Suprimentos (em dias)
+  leadTimeMaterial      Int? // Dias de lead time para material
+  leadTimeMaoDeObra     Int? // Dias de lead time para mão de obra
+  leadTimeContratos     Int? // Dias de lead time para contratos
+  leadTimeEquipamentos  Int? // Dias de lead time para equipamentos e fretes
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ativo])
+  @@index([ordem])
+}
+
+// --------------------------------------------------------
+// PREVISÕES DE MEDIÇÃO
+// --------------------------------------------------------
+
+// Previsão de Medição (Cabeçalho)
+model PrevisaoMedicao {
+  id            String                  @id @default(uuid())
+  obraId        String
+  nome          String // Ex: "Medição 01 - Janeiro/2024"
+  numero        Int // Número sequencial da medição (1, 2, 3...)
+  dataPrevisao  DateTime // Data prevista para medição
+  dataRealMedicao DateTime? // Data real em que a medição foi realizada (preenchida ao concluir)
+  ordem         Int // Ordem de exibição
+  visivel       Boolean                 @default(true) // Se está visível na planilha
+  tipo          TipoMedicao             @default(QUANTIDADE) // QUANTIDADE ou PERCENTUAL
+  observacoes   String?
+  status        StatusPrevisaoMedicao   @default(PREVISTA) // PREVISTA, REALIZADA, CANCELADA
+  // Vinculos com versões
+  versaoOrcamentoId String? // Versão da planilha contratual usada
+  versaoCustoOrcadoId String? // Versão de custos usada
+  versaoCategorizacaoId String? // Versão de categorização usada
+  versaoVisaoGerencialId String? // Versão de visão gerencial usada
+  versaoReferenciaId String? // Versão original quando a medição foi criada (para versionamento)
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  // Relações
+  obra          Obra                    @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  itens         ItemPrevisaoMedicao[] // Itens medidos
+  versaoReferencia VersaoOrcamento? @relation("MedicaoVersaoReferencia", fields: [versaoReferenciaId], references: [id])
+  
+  @@unique([obraId, numero]) // Garantir que o número seja único por obra
+  @@index([obraId])
+  @@index([obraId, status])
+  @@index([dataPrevisao])
+}
+
+// Item de Previsão de Medição (Detalhe)
+model ItemPrevisaoMedicao {
+  id                   String           @id @default(uuid())
+  previsaoMedicaoId    String
+  numeroMedicao        Int              @default(1) // Número da medição (1ª, 2ª, 3ª...) - desnormalizado para queries rápidas
+  // Vínculos com itens das planilhas
+  itemOrcamentoId      String? // ID do item da planilha contratual (VersaoOrcamento)
+  itemCustoOrcadoId    String? // ID do item de custos orçados (VersaoCustoOrcado)
+  itemCategorizacaoId  String? // ID do item de categorização (VersaoCategorizacao)
+  itemVisaoGerencialId String? // ID do item da visão gerencial (VersaoVisaoGerencial)
+  // Dados da categorização (desnormalizados para consulta rápida)
+  etapa                String? // Ex: "INFRAESTRUTURA E CONTENÇÕES"
+  subEtapa             String? // Ex: "MOVIMENTAÇÃO DE SOLO"
+  servicoSimplificado  String? // Ex: "Escavação e Reaterro Mecanizado"
+  // Dados da medição
+  quantidadePrevista   Decimal          @db.Decimal(12, 4) // Quantidade medida nesta previsão
+  percentualPrevisto   Decimal          @db.Decimal(5, 2) // Percentual medido (0-100)
+  valorPrevisto        Decimal          @db.Decimal(18, 2) // Valor calculado (quantidade x preço unitário)
+  // Dados acumulados (para facilitar consultas)
+  quantidadeAcumulada  Decimal          @default(0) @db.Decimal(12, 4) // Acumulado até esta medição
+  percentualAcumulado  Decimal          @default(0) @db.Decimal(5, 2) // Percentual acumulado
+  valorAcumulado       Decimal          @default(0) @db.Decimal(18, 2) // Valor acumulado
+  // Saldo do serviço
+  saldoQuantidade      Decimal          @default(0) @db.Decimal(12, 4) // Quantidade restante
+  saldoPercentual      Decimal          @default(0) @db.Decimal(5, 2) // Percentual restante
+  saldoValor           Decimal          @default(0) @db.Decimal(18, 2) // Valor restante
+  observacoes          String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  // Relações
+  previsaoMedicao      PrevisaoMedicao  @relation(fields: [previsaoMedicaoId], references: [id], onDelete: Cascade)
+
+  @@index([previsaoMedicaoId])
+  @@index([numeroMedicao])
+  @@index([itemOrcamentoId])
+  @@index([itemCustoOrcadoId])
+  @@index([itemCategorizacaoId])
+  @@index([itemVisaoGerencialId])
+  @@index([etapa])
+  @@index([subEtapa])
+  @@index([servicoSimplificado])
+}
+
+// --------------------------------------------------------
+// HISTÓRICO E MAPEAMENTO DE VERSÕES DE MEDIÇÕES
+// --------------------------------------------------------
+
+// Histórico de Versões de Medição
+model HistoricoVersaoMedicao {
+  id                String   @id @default(uuid())
+  obraId            String
+  versaoAnteriorId  String
+  versaoNovaId      String
+  dataAtualizacao   DateTime @default(now())
+  tipoAlteracao     TipoAditivo
+  numeroAditivo     Int?
+  descricao         String?
+  usuarioId         String?
+  
+  // Estatísticas
+  itensAdicionados  Int      @default(0)
+  itensRemovidos    Int      @default(0)
+  itensAlterados    Int      @default(0)
+  itensMantidos     Int      @default(0)
+  
+  // Relações
+  obra              Obra     @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  versaoAnterior    VersaoOrcamento @relation("VersaoAnterior", fields: [versaoAnteriorId], references: [id])
+  versaoNova        VersaoOrcamento @relation("VersaoNova", fields: [versaoNovaId], references: [id])
+  
+  @@index([obraId])
+  @@index([versaoAnteriorId])
+  @@index([versaoNovaId])
+}
+
+// Mapeamento de Itens entre Versões
+model MapeamentoItemVersao {
+  id                  String   @id @default(uuid())
+  obraId              String
+  versaoAnteriorId    String
+  versaoNovaId        String
+  itemAnteriorId      String?
+  itemNovoId          String?
+  codigo              String
+  tipoAlteracao       TipoAlteracaoItem
+  
+  // Dados comparativos
+  quantidadeAnterior  Decimal? @db.Decimal(12, 4)
+  quantidadeNova      Decimal? @db.Decimal(12, 4)
+  precoAnterior       Decimal? @db.Decimal(18, 2)
+  precoNovo           Decimal? @db.Decimal(18, 2)
+  
+  createdAt           DateTime @default(now())
+  
+  // Relações
+  obra                Obra     @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  
+  @@index([obraId])
+  @@index([versaoAnteriorId])
+  @@index([versaoNovaId])
+  @@index([codigo])
+  @@unique([versaoAnteriorId, versaoNovaId, codigo])
+}
+
+// Enums para Previsões de Medição
+enum TipoMedicao {
+  QUANTIDADE // Medição por quantidade
+  PERCENTUAL // Medição por percentual
+}
+
+enum StatusPrevisaoMedicao {
+  PREVISTA // Medição prevista (planejamento)
+  EM_MEDICAO // Medição em andamento
+  REALIZADA // Medição realizada e aprovada
+  CANCELADA // Medição cancelada
+}
+
+// Enums para Versionamento de Medições
+enum TipoAlteracaoItem {
+  MANTIDO // Item mantido sem alterações
+  ADICIONADO // Item novo adicionado (aditivo)
+  REMOVIDO // Item removido (glosa)
+  QUANTIDADE_ALTERADA // Apenas quantidade alterada
+  PRECO_ALTERADO // Apenas preço alterado
+  QUANTIDADE_E_PRECO_ALTERADOS // Quantidade e preço alterados
+}
+
+enum TipoAditivo {
+  ADITIVO // Aditivo contratual (acréscimo)
+  REVISAO // Revisão geral
+  GLOSA // Glosa (supressão)
+}
+
+// --------------------------------------------------------
+// CADASTROS FINANCEIROS
+// --------------------------------------------------------
+
+// Credores (Fornecedores, Empreiteiros, Funcionários)
+model Credor {
+  id                String    @id @default(uuid())
+  codigo            String    @unique // CRED-001, CRED-002, etc
+  construtoraId     String
+  
+  // Identificação
+  tipo              TipoCredor // FORNECEDOR, EMPREITEIRO, FUNCIONARIO
+  tipoPessoa        String    // PF ou PJ
+  cpfCnpj           String    // CPF (11) ou CNPJ (14) - limpo
+  nome              String    // Nome completo (PF) ou Razão Social (PJ)
+  nomeFantasia      String?   // Nome fantasia (se PJ)
+  
+  // Contato
+  email             String?
+  telefone          String?
+  celular           String?
+  
+  // Endereço
+  cep               String?
+  endereco          String?
+  numero            String?
+  complemento       String?
+  bairro            String?
+  cidade            String?
+  estado            String?
+  
+  // Dados Bancários
+  banco             String?   // Código do banco (ex: 001, 341)
+  agencia           String?
+  agenciaDigito     String?
+  conta             String?
+  contaDigito       String?
+  tipoConta         String?   // CORRENTE, POUPANCA
+  chavePix          String?   // Chave PIX (CPF, CNPJ, email, telefone, aleatória)
+  tipoChavePix      String?   // CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA
+  
+  // Campos específicos PJ
+  inscricaoEstadual String?
+  inscricaoMunicipal String?
+  
+  // Campos específicos PF
+  rg                String?
+  
+  // Status e valores
+  status            String    @default("ATIVO") // ATIVO, INATIVO, BLOQUEADO
+  valorPendente     Decimal   @default(0) @db.Decimal(18, 2)
+  
+  // Observações
+  observacoes       String?   @db.Text
+  
+  // Auditoria
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relações
+  construtora       Construtora @relation(fields: [construtoraId], references: [id], onDelete: Cascade)
+  
+  @@unique([construtoraId, cpfCnpj]) // Não pode haver CPF/CNPJ duplicado na mesma construtora
+  @@index([construtoraId])
+  @@index([construtoraId, tipo])
+  @@index([construtoraId, status])
+  @@index([cpfCnpj])
+}
+
+enum TipoCredor {
+  FORNECEDOR
+  EMPREITEIRO
+  FUNCIONARIO
+}
+
+// Contas Bancárias
+model ContaBancaria {
+  id                String    @id @default(uuid())
+  codigo            String    @unique // BANCO-001, BANCO-002, etc
+  construtoraId     String
+  
+  // Identificação
+  nome              String    // Nome amigável (ex: "Conta Corrente Principal")
+  
+  // Dados Bancários
+  banco             String    // Código do banco (ex: 001, 341)
+  nomeBanco         String    // Nome do banco (ex: "Banco do Brasil")
+  agencia           String
+  agenciaDigito     String?
+  conta             String
+  contaDigito       String
+  tipoConta         String    // CORRENTE, POUPANCA, INVESTIMENTO
+  
+  // PIX
+  chavePix          String?   // Chave PIX principal
+  tipoChavePix      String?   // CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA
+  chavesPix         Json?     // Array com múltiplas chaves PIX
+  
+  // Saldo e Status
+  saldoAtual        Decimal   @default(0) @db.Decimal(18, 2)
+  saldoDisponivel   Decimal   @default(0) @db.Decimal(18, 2)
+  dataAtualizacaoSaldo DateTime?
+  status            String    @default("ATIVA") // ATIVA, INATIVA, ENCERRADA
+  
+  // Configurações
+  permiteSaque      Boolean   @default(true)
+  permiteDeposito   Boolean   @default(true)
+  permiteTransferencia Boolean @default(true)
+  
+  // Observações
+  observacoes       String?   @db.Text
+  
+  // Auditoria
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relações
+  construtora       Construtora @relation(fields: [construtoraId], references: [id], onDelete: Cascade)
+  
+  @@unique([construtoraId, banco, agencia, conta]) // Não pode haver conta duplicada
+  @@index([construtoraId])
+  @@index([construtoraId, status])
+}
+
+// Plano de Contas (Estrutura DRE)
+model PlanoContas {
+  id                String    @id @default(uuid())
+  codigo            String    @unique // PLANO-001, PLANO-002, etc
+  construtoraId     String
+  
+  // Identificação
+  nome              String    // Nome do plano (ex: "DRE Padrão", "DRE Obra XYZ")
+  descricao         String?   @db.Text
+  
+  // Configurações
+  isPadrao          Boolean   @default(false) // Apenas 1 padrão por construtora
+  status            String    @default("ATIVO") // ATIVO, INATIVO
+  
+  // Vinculação
+  obraIds           Json?     // Array de IDs de obras vinculadas (desnormalizado)
+  
+  // Auditoria
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relações
+  construtora       Construtora @relation(fields: [construtoraId], references: [id], onDelete: Cascade)
+  contas            ContaContabil[] // Contas do plano
+  
+  @@index([construtoraId])
+  @@index([construtoraId, isPadrao])
+  @@index([construtoraId, status])
+}
+
+model ContaContabil {
+  id                String    @id @default(uuid())
+  planoContasId     String
+  
+  // Hierarquia
+  codigo            String    // Ex: "1", "1.1", "1.1.1", "1.1.1.1"
+  nivel             Int       // 0, 1, 2, 3 (máximo 4 níveis)
+  ordem             Int       // Ordem de exibição (respeitando ordem da DRE)
+  parentId          String?   // ID da conta pai (null para raiz)
+  
+  // Identificação
+  nome              String    // Nome da conta
+  descricao         String?   @db.Text
+  
+  // Configurações
+  tipo              TipoContaContabil // ANALITICA, SINTETICA, LINHA_RESULTADO
+  natureza          NaturezaConta // DEVEDORA, CREDORA
+  aceitaLancamento  Boolean   @default(true) // Contas sintéticas e linhas de resultado não aceitam
+  
+  // Classificação DRE
+  categoriaDRE      CategoriaDRE? // Categoria na estrutura da DRE
+  tipoCalculo       TipoCalculoDRE? // Como calcular (SOMA, SUBTRACAO, FORMULA)
+  formula           String?   @db.Text // Fórmula de cálculo (ex: "3.1 - 3.2 - 3.3")
+  
+  // Classificação tradicional (compatibilidade)
+  categoria         String?   // RECEITA, CUSTO, DESPESA
+  subcategoria      String?   // OPERACIONAL, FINANCEIRO, etc
+  
+  // Status
+  status            String    @default("ATIVA") // ATIVA, INATIVA
+  
+  // Observações
+  observacoes       String?   @db.Text
+  
+  // Auditoria
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relações
+  planoContas       PlanoContas @relation(fields: [planoContasId], references: [id], onDelete: Cascade)
+  
+  @@unique([planoContasId, codigo]) // Código único dentro do plano
+  @@index([planoContasId])
+  @@index([planoContasId, nivel])
+  @@index([planoContasId, parentId])
+  @@index([planoContasId, tipo])
+  @@index([planoContasId, categoriaDRE])
+}
+
+enum TipoContaContabil {
+  ANALITICA         // Aceita lançamentos (contas detalhadas)
+  SINTETICA         // Totaliza outras contas (não aceita lançamentos)
+  LINHA_RESULTADO   // Linha de resultado calculada (Lucro Bruto, EBITDA, etc)
+}
+
+enum NaturezaConta {
+  DEVEDORA
+  CREDORA
+}
+
+enum CategoriaDRE {
+  RECEITA_BRUTA
+  DEDUCOES_RECEITA
+  RECEITA_LIQUIDA        // Linha resultado
+  CUSTO_SERVICOS
+  LUCRO_BRUTO           // Linha resultado
+  DESPESAS_COMERCIAIS
+  DESPESAS_ADMINISTRATIVAS
+  DESPESAS_PESSOAL
+  OUTRAS_DESPESAS_OPERACIONAIS
+  EBITDA                // Linha resultado
+  DEPRECIACAO_AMORTIZACAO
+  EBIT                  // Linha resultado (Lucro Operacional)
+  RECEITAS_FINANCEIRAS
+  DESPESAS_FINANCEIRAS
+  RESULTADO_FINANCEIRO   // Linha resultado
+  LAIR                  // Linha resultado (Lucro antes IR)
+  IMPOSTOS_LUCRO
+  LUCRO_LIQUIDO         // Linha resultado final
+}
+
+enum TipoCalculoDRE {
+  SOMA          // Soma das contas filhas
+  SUBTRACAO     // Subtração das contas filhas
+  FORMULA       // Usa fórmula customizada
+}
+
+// Centro de Custo
+model CentroCusto {
+  id                String    @id @default(uuid())
+  codigo            String    @unique // CC-001, CC-002, etc
+  construtoraId     String
+  
+  // Hierarquia (opcional)
+  nivel             Int       @default(0) // 0, 1, 2
+  parentId          String?   // ID do centro de custo pai
+  
+  // Identificação
+  nome              String
+  descricao         String?   @db.Text
+  
+  // Vinculação
+  obraIds           Json?     // Array de IDs de obras vinculadas
+  
+  // Configurações
+  tipo              String?   // ADMINISTRATIVO, OBRA, DEPARTAMENTO, etc
+  
+  // Status
+  status            String    @default("ATIVO") // ATIVO, INATIVO
+  
+  // Observações
+  observacoes       String?   @db.Text
+  
+  // Auditoria
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relações
+  construtora       Construtora @relation(fields: [construtoraId], references: [id], onDelete: Cascade)
+  
+  @@unique([construtoraId, codigo]) // Código único por construtora
+  @@index([construtoraId])
+  @@index([construtoraId, status])
+  @@index([parentId])
+}
+
