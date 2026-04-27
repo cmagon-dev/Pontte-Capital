@@ -12,7 +12,10 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 // Criar adapter para PostgreSQL
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('neon.tech') ? { rejectUnauthorized: false } : undefined,
+});
 const adapter = new PrismaPg(pool);
 
 export const db =

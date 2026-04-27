@@ -2,7 +2,6 @@ import { db } from '@/lib/db';
 import CadastrosFinanceirosContent from './CadastrosFinanceirosContent';
 
 export default async function CadastrosFinanceirosPage() {
-  // Buscar todas as construtoras do banco
   const construtoras = await db.construtora.findMany({
     select: {
       id: true,
@@ -27,7 +26,6 @@ export default async function CadastrosFinanceirosPage() {
     }
   });
 
-  // Formatar dados das construtoras
   const construtorasFormatadas = construtoras.map(construtora => ({
     id: construtora.id,
     codigo: construtora.codigo,
@@ -43,7 +41,6 @@ export default async function CadastrosFinanceirosPage() {
     totalCentrosCusto: construtora._count.centrosCusto,
   }));
 
-  // Totais gerais
   const totalConstrutoras = construtorasFormatadas.length;
   const totalCredores = construtorasFormatadas.reduce((sum, c) => sum + c.totalCredores, 0);
   const totalContas = construtorasFormatadas.reduce((sum, c) => sum + c.totalContas, 0);
