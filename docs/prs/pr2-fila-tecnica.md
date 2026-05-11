@@ -67,14 +67,29 @@ Card com:
   - Cleanup OK.
 - [x] **32/32 checks passam** (PR1 + PR2).
 
-### 7. Docs 🚧
+### 7. Docs ✅
 
 - [x] Plano deste PR ✅.
-- [ ] `docs/operacoes-roadmap.md` — marcar PR1 como Merged e PR2 como Em andamento.
+- [x] `docs/operacoes-roadmap.md` atualizado (PR1 pronto para merge, PR2 em andamento).
 
-### 8. Commit & push 🚧
+### 8. Commit & push ✅
 
-- [ ] Commit + push.
+- [x] Commit `e67d81d`: `feat(operacoes): adiciona aba Operacoes na fila de aprovacao tecnica` (6 arquivos, +673/-95).
+- [x] Branch `feature/operacoes-pr2-fila-tecnica` pushada para `origin`.
+- [ ] (Opcional) Abrir PR: https://github.com/cmagon-dev/Pontte-Capital/pull/new/feature/operacoes-pr2-fila-tecnica
+
+---
+
+## Resumo
+
+**Status:** ✅ PR2 entregue.
+
+- Página `/aprovacoes/engenharia/` agora tem 2 abas funcionais.
+- Aprovador técnico Pontte (`apr-tec@pontte.com`) pode aprovar/rejeitar operações inline ou navegar para detalhe.
+- Sem novas permissões, sem novas migrations.
+- Smoke test acumula em `scripts/smoke-test-operacoes.ts` (32/32 ✓).
+
+**Próximos passos:** PR3a — Análise técnica, aba EAP comparativo. Esse PR vai criar uma página de análise rica (não só a fila), com a EAP gerencial mostrando o quanto já foi apropriado vs. agora vs. acumulado.
 
 ---
 
