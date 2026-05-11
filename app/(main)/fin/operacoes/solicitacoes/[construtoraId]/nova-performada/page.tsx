@@ -81,12 +81,13 @@ function parseValorInput(str: string): number {
 
 function getWorkflowBadge(status: string) {
   switch (status) {
-    case 'EM_EDICAO':    return { label: 'Em Edição',    icon: <Edit className="w-3 h-3" />,       cls: 'bg-blue-900/50 text-blue-400 border-blue-800' };
-    case 'FINALIZADA':  return { label: 'Finalizada',   icon: <FileText className="w-3 h-3" />,   cls: 'bg-slate-700 text-slate-300 border-slate-600' };
-    case 'EM_APROVACAO':return { label: 'Em Aprovação', icon: <Clock className="w-3 h-3" />,      cls: 'bg-amber-900/50 text-amber-400 border-amber-800' };
-    case 'APROVADA':    return { label: 'Aprovada',     icon: <CheckCircle2 className="w-3 h-3" />,cls: 'bg-green-900/50 text-green-400 border-green-800' };
-    case 'REJEITADA':   return { label: 'Rejeitada',    icon: <XCircle className="w-3 h-3" />,    cls: 'bg-red-900/50 text-red-400 border-red-800' };
-    default:            return { label: status,         icon: null,                                cls: 'bg-slate-700 text-slate-400 border-slate-600' };
+    case 'EM_EDICAO':                return { label: 'Em Edição',              icon: <Edit className="w-3 h-3" />,       cls: 'bg-blue-900/50 text-blue-400 border-blue-800' };
+    case 'FINALIZADA':               return { label: 'Finalizada',             icon: <FileText className="w-3 h-3" />,   cls: 'bg-slate-700 text-slate-300 border-slate-600' };
+    case 'EM_APROVACAO_TECNICA':     return { label: 'Em Aprovação Técnica',   icon: <Clock className="w-3 h-3" />,      cls: 'bg-amber-900/50 text-amber-400 border-amber-800' };
+    case 'EM_APROVACAO_FINANCEIRA':  return { label: 'Em Aprovação Financeira', icon: <Clock className="w-3 h-3" />,      cls: 'bg-amber-900/50 text-amber-400 border-amber-800' };
+    case 'APROVADA':                 return { label: 'Aprovada',               icon: <CheckCircle2 className="w-3 h-3" />,cls: 'bg-green-900/50 text-green-400 border-green-800' };
+    case 'REJEITADA':                return { label: 'Rejeitada',              icon: <XCircle className="w-3 h-3" />,    cls: 'bg-red-900/50 text-red-400 border-red-800' };
+    default:                         return { label: status,                   icon: null,                                cls: 'bg-slate-700 text-slate-400 border-slate-600' };
   }
 }
 

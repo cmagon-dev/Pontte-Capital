@@ -21,7 +21,7 @@ async function getOperacoesEmAprovacao() {
 
   return db.operacao.findMany({
     where: {
-      statusWorkflow: 'EM_APROVACAO',
+      statusWorkflow: 'EM_APROVACAO_FINANCEIRA',
       ...filaFilter,
       ...scopeFilter,
     },

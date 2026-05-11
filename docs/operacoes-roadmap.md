@@ -8,8 +8,8 @@
 
 | Fase | PR | Título | Status | Tamanho est. | Dependência | Link |
 |---|---|---|---|---|---|---|
-| 0 | PR-zero | Documentos de especificação | 🚧 Em andamento | docs only | — | — |
-| 1 | PR1 | Schema + workflow técnico (aprovação Pontte) | 📋 Planejado | ~400 LOC | PR-zero | — |
+| 0 | PR-zero | Documentos de especificação | ✅ Merged | docs only | — | commit `8610c5d` |
+| 1 | PR1 | Schema + workflow técnico (aprovação Pontte) | 🚧 Em andamento | ~400 LOC | PR-zero | branch `feature/operacoes-pr1-workflow-tecnico` |
 | 2 | PR2 | Aba "Operações" na fila técnica | 📋 Planejado | ~250 LOC | PR1 | — |
 | 3a | PR3a | Análise técnica — aba **EAP comparativo** | 📋 Planejado | ~350 LOC | PR2 | — |
 | 3b | PR3b | Análise técnica — aba **Contrato & Empenho** | 📋 Planejado | ~250 LOC | PR2 | — |
@@ -25,7 +25,7 @@
 
 ### PR-zero — Documentos de especificação
 
-**Status:** 🚧 Em andamento
+**Status:** ✅ Merged (commit `8610c5d`)
 
 **Entrega:**
 - `docs/operacoes-fluxo.md` — especificação viva.
@@ -46,7 +46,9 @@
 
 ### PR1 — Schema + workflow técnico (aprovação Pontte)
 
-**Status:** 📋 Planejado
+**Status:** 🚧 Em andamento (branch `feature/operacoes-pr1-workflow-tecnico`)
+
+> Detalhe da execução: `docs/prs/pr1-workflow-tecnico.md`.
 
 **Entrega:**
 - Aprovação técnica passa a existir como etapa formal entre construtora e Fundo/Fiador.

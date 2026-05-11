@@ -754,41 +754,6 @@ function resolverPapelAprovacao(
   throw new Error('Não há etapa pendente para este aprovador');
 }
 
-export async function finalizarOperacao(id: string) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) throw new Error('Não autenticado');
-  return prisma.operacao.update({
-    where: { id, statusWorkflow: 'EM_EDICAO' },
-    data: { statusWorkflow: 'FINALIZADA', dataFinalizacao: new Date() },
-  });
-}
-
-export async function submeterParaAprovacao(id: string) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) throw new Error('Não autenticado');
-  const precisaFiador = await exigeAprovacaoFiadorPorOperacao(id);
-
-  return prisma.operacao.update({
-    where: { id, statusWorkflow: 'FINALIZADA' },
-    data: {
-      statusWorkflow: 'EM_APROVACAO',
-      exigeAprovacaoFiador: precisaFiador,
-      aprovacaoFundoStatus: 'PENDENTE',
-      aprovacaoFundoData: null,
-      aprovacaoFundoMotivo: null,
-      aprovacaoFundoPorId: null,
-      aprovacaoFiadorStatus: precisaFiador ? 'PENDENTE' : 'APROVADA',
-      aprovacaoFiadorData: precisaFiador ? null : new Date(),
-      aprovacaoFiadorMotivo: null,
-      aprovacaoFiadorPorId: null,
-      dataAprovacao: null,
-      dataRejeicao: null,
-      motivoRejeicao: null,
-      aprovadorId: null,
-    },
-  });
-}
-
 export async function aprovarOperacao(id: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new Error('Não autenticado');
@@ -806,8 +771,8 @@ export async function aprovarOperacao(id: string) {
       },
     });
 
-    if (!operacao || operacao.statusWorkflow !== 'EM_APROVACAO') {
-      throw new Error('Operação não está em aprovação');
+    if (!operacao || operacao.statusWorkflow !== 'EM_APROVACAO_FINANCEIRA') {
+      throw new Error('Operação não está em aprovação financeira');
     }
 
     const papel = resolverPapelAprovacao(session.user.permissoes ?? [], operacao);
@@ -832,7 +797,7 @@ export async function aprovarOperacao(id: string) {
         ...(papel === 'FUNDO'
           ? { aprovacaoFundoData: dataAgora, aprovacaoFundoPorId: session.user.id, aprovacaoFundoMotivo: null }
           : { aprovacaoFiadorData: dataAgora, aprovacaoFiadorPorId: session.user.id, aprovacaoFiadorMotivo: null }),
-        statusWorkflow: operacaoAprovada ? 'APROVADA' : 'EM_APROVACAO',
+        statusWorkflow: operacaoAprovada ? 'APROVADA' : 'EM_APROVACAO_FINANCEIRA',
         dataAprovacao: operacaoAprovada ? dataAgora : null,
         aprovadorId: operacaoAprovada ? session.user.id : null,
       },
@@ -883,8 +848,8 @@ export async function rejeitarOperacao(id: string, motivo: string) {
       },
     });
 
-    if (!operacao || operacao.statusWorkflow !== 'EM_APROVACAO') {
-      throw new Error('Operação não está em aprovação');
+    if (!operacao || operacao.statusWorkflow !== 'EM_APROVACAO_FINANCEIRA') {
+      throw new Error('Operação não está em aprovação financeira');
     }
 
     const papel = resolverPapelAprovacao(session.user.permissoes ?? [], operacao);
@@ -935,26 +900,31 @@ export async function liquidarOperacao(id: string, dataPagamento: Date) {
   return prisma.operacao.findUnique({ where: { id } });
 }
 
-/** Envia diretamente para EM_APROVACAO (combina Finalizar + Submeter em um passo) */
+/**
+ * Envia para aprovação técnica (Pontte). A operação fica em EM_APROVACAO_TECNICA
+ * até que a equipe técnica aprove (vai para EM_APROVACAO_FINANCEIRA) ou rejeite (REJEITADA).
+ */
 export async function enviarParaAprovacao(id: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.permissoes?.includes('fin:operacoes:editar')) {
     throw new Error('Sem permissão para enviar operações para aprovação');
   }
-  const precisaFiador = await exigeAprovacaoFiadorPorOperacao(id);
 
   return prisma.operacao.update({
     where: { id, statusWorkflow: 'EM_EDICAO' },
     data: {
-      statusWorkflow: 'EM_APROVACAO',
+      statusWorkflow: 'EM_APROVACAO_TECNICA',
       dataFinalizacao: new Date(),
-      exigeAprovacaoFiador: precisaFiador,
+      aprovacaoTecnicaStatus: 'PENDENTE',
+      aprovacaoTecnicaData: null,
+      aprovacaoTecnicaMotivo: null,
+      aprovacaoTecnicaPorId: null,
       aprovacaoFundoStatus: 'PENDENTE',
       aprovacaoFundoData: null,
       aprovacaoFundoMotivo: null,
       aprovacaoFundoPorId: null,
-      aprovacaoFiadorStatus: precisaFiador ? 'PENDENTE' : 'APROVADA',
-      aprovacaoFiadorData: precisaFiador ? null : new Date(),
+      aprovacaoFiadorStatus: 'PENDENTE',
+      aprovacaoFiadorData: null,
       aprovacaoFiadorMotivo: null,
       aprovacaoFiadorPorId: null,
       dataAprovacao: null,
@@ -962,6 +932,115 @@ export async function enviarParaAprovacao(id: string) {
       motivoRejeicao: null,
       aprovadorId: null,
     },
+  });
+}
+
+/**
+ * Aprovação técnica (Pontte). Transita EM_APROVACAO_TECNICA -> EM_APROVACAO_FINANCEIRA.
+ * Resolve aqui o `exigeAprovacaoFiador` para a etapa financeira seguinte.
+ */
+export async function aprovarTecnica(id: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.permissoes?.includes('aprovacoes:engenharia:aprovar')) {
+    throw new Error('Sem permissão para aprovação técnica');
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const operacao = await tx.operacao.findUnique({
+      where: { id },
+      select: { id: true, statusWorkflow: true },
+    });
+
+    if (!operacao || operacao.statusWorkflow !== 'EM_APROVACAO_TECNICA') {
+      throw new Error('Operação não está em aprovação técnica');
+    }
+
+    const precisaFiador = await exigeAprovacaoFiadorPorOperacao(id);
+    const dataAgora = new Date();
+
+    const atualizada = await tx.operacao.update({
+      where: { id },
+      data: {
+        statusWorkflow: 'EM_APROVACAO_FINANCEIRA',
+        aprovacaoTecnicaStatus: 'APROVADA',
+        aprovacaoTecnicaData: dataAgora,
+        aprovacaoTecnicaPorId: session.user.id,
+        aprovacaoTecnicaMotivo: null,
+        exigeAprovacaoFiador: precisaFiador,
+        aprovacaoFundoStatus: 'PENDENTE',
+        aprovacaoFundoData: null,
+        aprovacaoFundoMotivo: null,
+        aprovacaoFundoPorId: null,
+        aprovacaoFiadorStatus: precisaFiador ? 'PENDENTE' : 'APROVADA',
+        aprovacaoFiadorData: precisaFiador ? null : dataAgora,
+        aprovacaoFiadorMotivo: null,
+        aprovacaoFiadorPorId: null,
+      },
+    });
+
+    await tx.operacaoAprovacaoHistorico.create({
+      data: {
+        operacaoId: id,
+        usuarioId: session.user.id,
+        papel: 'TECNICA',
+        decisao: 'APROVADA',
+      },
+    });
+
+    return atualizada;
+  });
+}
+
+/**
+ * Rejeição técnica (Pontte). Transita EM_APROVACAO_TECNICA -> REJEITADA.
+ * O `motivo` é obrigatório e fica disponível para a construtora corrigir e reenviar.
+ */
+export async function rejeitarTecnica(id: string, motivo: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.permissoes?.includes('aprovacoes:engenharia:aprovar')) {
+    throw new Error('Sem permissão para aprovação técnica');
+  }
+  if (!motivo || motivo.trim().length === 0) {
+    throw new Error('Motivo da rejeição é obrigatório');
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const operacao = await tx.operacao.findUnique({
+      where: { id },
+      select: { id: true, statusWorkflow: true },
+    });
+
+    if (!operacao || operacao.statusWorkflow !== 'EM_APROVACAO_TECNICA') {
+      throw new Error('Operação não está em aprovação técnica');
+    }
+
+    const dataAgora = new Date();
+
+    const atualizada = await tx.operacao.update({
+      where: { id },
+      data: {
+        statusWorkflow: 'REJEITADA',
+        aprovacaoTecnicaStatus: 'REJEITADA',
+        aprovacaoTecnicaData: dataAgora,
+        aprovacaoTecnicaPorId: session.user.id,
+        aprovacaoTecnicaMotivo: motivo,
+        dataRejeicao: dataAgora,
+        aprovadorId: session.user.id,
+        motivoRejeicao: motivo,
+      },
+    });
+
+    await tx.operacaoAprovacaoHistorico.create({
+      data: {
+        operacaoId: id,
+        usuarioId: session.user.id,
+        papel: 'TECNICA',
+        decisao: 'REJEITADA',
+        motivo,
+      },
+    });
+
+    return atualizada;
   });
 }
 
@@ -1284,8 +1363,12 @@ export async function calcularResumoOperacoes(construtoraId: string) {
     totalAbertas: operacoes.filter((o) => STATUS_FINANCEIRO_ABERTOS.includes(o.statusFinanceiro)).length,
     totalLiquidadas: operacoes.filter((o) => o.statusFinanceiro === 'LIQUIDADO').length,
     valorTotalAberto: somarValor(operacoes.filter((o) => STATUS_FINANCEIRO_ABERTOS.includes(o.statusFinanceiro))),
-    // Em aprovação
-    emAprovacao: operacoes.filter((o) => o.statusWorkflow === 'EM_APROVACAO').length,
+    // Em aprovação (técnica + financeira agrupadas)
+    emAprovacao: operacoes.filter(
+      (o) =>
+        o.statusWorkflow === 'EM_APROVACAO_TECNICA' ||
+        o.statusWorkflow === 'EM_APROVACAO_FINANCEIRA',
+    ).length,
   };
 }
 

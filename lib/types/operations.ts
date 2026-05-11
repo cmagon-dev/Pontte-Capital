@@ -7,7 +7,13 @@
 export type OperationType = 'TO_PERFORM' | 'PERFORMED';
 
 // Status de workflow
-export type WorkflowStatus = 'EM_EDICAO' | 'FINALIZADA' | 'EM_APROVACAO' | 'APROVADA' | 'REJEITADA';
+export type WorkflowStatus =
+  | 'EM_EDICAO'
+  | 'FINALIZADA'
+  | 'EM_APROVACAO_TECNICA'
+  | 'EM_APROVACAO_FINANCEIRA'
+  | 'APROVADA'
+  | 'REJEITADA';
 
 // Status financeiro
 export type FinancialStatus = 'ABERTO' | 'VENCIDO' | 'LIQUIDADO';

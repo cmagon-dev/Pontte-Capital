@@ -127,3 +127,28 @@ Quebrar em PR3a, PR3b, PR3c — uma aba por PR. PR3a entrega o esqueleto da tela
 - ✅ PRs revisáveis (~200–350 linhas cada).
 - ✅ Aprovação técnica fica funcional já no PR3a (com apenas a aba EAP) — pode rodar em produção mesmo sem PR3b/PR3c.
 - ⚠ PR3a precisa entregar o "esqueleto" da tela com tabs vazias para PR3b/PR3c só plugarem conteúdo.
+
+---
+
+## ADR-007 — Baseline das migrations Prisma durante o PR1
+
+**Data:** 2026-05-11
+**Status:** Aceito
+
+**Contexto:**
+Durante a execução do PR1, ao tentar rodar `prisma migrate reset`, o banco quebrou aplicando a migration `20260428161000_saldo_performado_ledger`: ela referenciava colunas da `Operacao` (`obraId`, `tipo`, `valorTotalOrdens`, `valorRecomprado`, `saldoPerformadoConsumido`) que **não existiam** no estado pós-`init`. Faltava uma migration intermediária — provavelmente o trabalho foi feito via `prisma db push`, que sincroniza schema → banco sem gerar arquivo de migration. O resultado: o banco em produção funcionava, mas o histórico versionado tinha um buraco que impedia recriar o banco do zero.
+
+Caminhos avaliados:
+1. **Baseline**: apagar as 3 migrations e gerar uma única refletindo o schema atual.
+2. **Reconstruir a migration faltante** manualmente (todos os `ALTER TABLE` ausentes).
+3. **`prisma db push`** + `migrate resolve --applied` para fingir que tudo foi aplicado.
+
+**Decisão:**
+Opção 1 — baseline. As 3 migrations antigas foram apagadas; uma nova `20260511173938_baseline` foi gerada via `prisma migrate dev --name baseline` refletindo o schema **pré-PR1**. Em seguida, as mudanças do PR1 foram aplicadas via `20260511180000_adiciona_aprovacao_tecnica` (escrita manualmente, porque `prisma migrate dev` exige confirmação interativa para remover valor de enum, e Cursor é não-interativo).
+
+**Consequências:**
+- ✅ Histórico de migrations consistente — qualquer dev novo consegue rodar `prisma migrate reset` sem erro.
+- ✅ Migration do PR1 isolada e auditável (sabe-se exatamente o que foi adicionado para a aprovação técnica).
+- ⚠ Os 3 arquivos de migration antigos foram **perdidos** (não recuperáveis facilmente). Como o banco em prod ainda não existe (era dev/teste), o impacto é nulo.
+- ⚠ Se houver outros ambientes apontando para outras DATABASE_URLs (homologação, demo), eles precisarão ser resetados também — não há migração incremental possível para "fora do baseline".
+- 📌 Decisão de processo: daqui pra frente, **toda mudança de schema deve ser feita via `prisma migrate dev`**, nunca mais `prisma db push`. Isso evita futuros buracos.

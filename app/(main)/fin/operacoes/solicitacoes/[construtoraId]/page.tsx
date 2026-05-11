@@ -31,7 +31,8 @@ function getStatusWorkflowColor(status: string) {
   switch (status) {
     case 'EM_EDICAO': return 'bg-blue-900 text-blue-400';
     case 'FINALIZADA': return 'bg-slate-700 text-slate-300';
-    case 'EM_APROVACAO': return 'bg-amber-900 text-amber-400';
+    case 'EM_APROVACAO_TECNICA': return 'bg-amber-900 text-amber-400';
+    case 'EM_APROVACAO_FINANCEIRA': return 'bg-amber-900 text-amber-400';
     case 'APROVADA': return 'bg-green-900 text-green-400';
     case 'REJEITADA': return 'bg-red-900 text-red-400';
     default: return 'bg-slate-700 text-slate-300';
@@ -42,7 +43,8 @@ function getLabelWorkflow(status: string) {
   switch (status) {
     case 'EM_EDICAO': return 'Em Edição';
     case 'FINALIZADA': return 'Finalizada';
-    case 'EM_APROVACAO': return 'Em Aprovação';
+    case 'EM_APROVACAO_TECNICA': return 'Em Aprovação Técnica';
+    case 'EM_APROVACAO_FINANCEIRA': return 'Em Aprovação Financeira';
     case 'APROVADA': return 'Aprovada';
     case 'REJEITADA': return 'Rejeitada';
     default: return status;
@@ -53,7 +55,8 @@ function getStatusWorkflowIcon(status: string) {
   switch (status) {
     case 'EM_EDICAO': return <Edit className="w-4 h-4" />;
     case 'FINALIZADA': return <FileText className="w-4 h-4" />;
-    case 'EM_APROVACAO': return <Clock className="w-4 h-4" />;
+    case 'EM_APROVACAO_TECNICA': return <Clock className="w-4 h-4" />;
+    case 'EM_APROVACAO_FINANCEIRA': return <Clock className="w-4 h-4" />;
     case 'APROVADA': return <CheckCircle2 className="w-4 h-4" />;
     case 'REJEITADA': return <XCircle className="w-4 h-4" />;
     default: return <FileText className="w-4 h-4" />;
@@ -452,7 +455,8 @@ export default function SolicitacoesConstrutoraPage({ params }: { params: { cons
                   <option value="todas">Todos</option>
                   <option value="EM_EDICAO">Em Edição</option>
                   <option value="FINALIZADA">Finalizada</option>
-                  <option value="EM_APROVACAO">Em Aprovação</option>
+                  <option value="EM_APROVACAO_TECNICA">Em Aprovação Técnica</option>
+                  <option value="EM_APROVACAO_FINANCEIRA">Em Aprovação Financeira</option>
                   <option value="APROVADA">Aprovada</option>
                   <option value="REJEITADA">Rejeitada</option>
                 </select>

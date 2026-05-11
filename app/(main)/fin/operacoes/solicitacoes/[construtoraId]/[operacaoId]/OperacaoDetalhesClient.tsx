@@ -70,7 +70,8 @@ function getLabelWorkflow(status: string) {
   switch (status) {
     case 'EM_EDICAO': return 'Em Edição';
     case 'FINALIZADA': return 'Finalizada';
-    case 'EM_APROVACAO': return 'Em Aprovação';
+    case 'EM_APROVACAO_TECNICA': return 'Em Aprovação Técnica';
+    case 'EM_APROVACAO_FINANCEIRA': return 'Em Aprovação Financeira';
     case 'APROVADA': return 'Aprovada';
     case 'REJEITADA': return 'Rejeitada';
     default: return status;
@@ -81,7 +82,8 @@ function getWorkflowBadgeClass(status: string) {
   switch (status) {
     case 'EM_EDICAO': return 'bg-blue-900/60 text-blue-300 border border-blue-700';
     case 'FINALIZADA': return 'bg-slate-700 text-slate-300 border border-slate-600';
-    case 'EM_APROVACAO': return 'bg-amber-900/60 text-amber-300 border border-amber-700';
+    case 'EM_APROVACAO_TECNICA': return 'bg-amber-900/60 text-amber-300 border border-amber-700';
+    case 'EM_APROVACAO_FINANCEIRA': return 'bg-amber-900/60 text-amber-300 border border-amber-700';
     case 'APROVADA': return 'bg-green-900/60 text-green-300 border border-green-700';
     case 'REJEITADA': return 'bg-red-900/60 text-red-300 border border-red-700';
     default: return 'bg-slate-700 text-slate-300';
@@ -613,7 +615,7 @@ export default function OperacaoDetalhesClient({
             <label className="block text-xs text-slate-400 mb-1">Status Workflow</label>
             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold ${getWorkflowBadgeClass(operacao.statusWorkflow)}`}>
               {operacao.statusWorkflow === 'EM_EDICAO' && <Edit2 className="w-3 h-3" />}
-              {operacao.statusWorkflow === 'EM_APROVACAO' && <Clock className="w-3 h-3" />}
+              {(operacao.statusWorkflow === 'EM_APROVACAO_TECNICA' || operacao.statusWorkflow === 'EM_APROVACAO_FINANCEIRA') && <Clock className="w-3 h-3" />}
               {operacao.statusWorkflow === 'APROVADA' && <CheckCircle className="w-3 h-3" />}
               {operacao.statusWorkflow === 'REJEITADA' && <XCircle className="w-3 h-3" />}
               {getLabelWorkflow(operacao.statusWorkflow)}

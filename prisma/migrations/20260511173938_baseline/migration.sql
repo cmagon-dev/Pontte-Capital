@@ -1,5 +1,32 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
+-- CreateEnum
+CREATE TYPE "TipoOperacao" AS ENUM ('A_PERFORMAR', 'PERFORMADA', 'SALDO_PERFORMADO');
+
+-- CreateEnum
+CREATE TYPE "TipoLancamentoSaldoPerformado" AS ENUM ('CREDITO', 'DEBITO', 'AJUSTE_CREDITO', 'AJUSTE_DEBITO');
+
+-- CreateEnum
+CREATE TYPE "StatusWorkflowOperacao" AS ENUM ('EM_EDICAO', 'FINALIZADA', 'EM_APROVACAO', 'APROVADA', 'REJEITADA');
+
+-- CreateEnum
+CREATE TYPE "StatusFinanceiroOperacao" AS ENUM ('ABERTO', 'VENCIDO', 'LIQUIDADO');
+
+-- CreateEnum
+CREATE TYPE "PapelAprovacaoOperacao" AS ENUM ('FUNDO', 'FIADOR');
+
+-- CreateEnum
+CREATE TYPE "StatusAprovacaoPapel" AS ENUM ('PENDENTE', 'APROVADA', 'REJEITADA');
+
+-- CreateEnum
+CREATE TYPE "TipoPagamentoOrdem" AS ENUM ('PIX', 'TED', 'BOLETO', 'CARTAO');
+
+-- CreateEnum
+CREATE TYPE "TipoDocumentoOrdem" AS ENUM ('NOTA_FISCAL', 'PEDIDO_COMPRA', 'CONTRATO', 'RECIBO', 'OUTRO');
+
+-- CreateEnum
+CREATE TYPE "TipoCustoApropriacao" AS ENUM ('DIRETO', 'INDIRETO');
+
+-- CreateEnum
+CREATE TYPE "SubcategoriaCustoDireto" AS ENUM ('MATERIAL', 'MAO_OBRA_SUB', 'CONTRATOS', 'EQUIP_FRETE');
 
 -- CreateEnum
 CREATE TYPE "FaseOrcamento" AS ENUM ('PLANILHA_CONTRATUAL', 'CUSTOS_ORCADOS', 'CATEGORIZACAO', 'CONCLUIDO');
@@ -30,21 +57,6 @@ CREATE TYPE "TipoAditivo" AS ENUM ('ADITIVO', 'REVISAO', 'GLOSA');
 
 -- CreateEnum
 CREATE TYPE "TipoCredor" AS ENUM ('FORNECEDOR', 'EMPREITEIRO', 'FUNCIONARIO');
-
--- CreateEnum
-CREATE TYPE "TipoContaContabil" AS ENUM ('ANALITICA', 'SINTETICA', 'LINHA_RESULTADO');
-
--- CreateEnum
-CREATE TYPE "NaturezaConta" AS ENUM ('DEVEDORA', 'CREDORA');
-
--- CreateEnum
-CREATE TYPE "CategoriaDRE" AS ENUM ('RECEITA_BRUTA', 'DEDUCOES_RECEITA', 'RECEITA_LIQUIDA', 'CUSTO_SERVICOS', 'LUCRO_BRUTO', 'DESPESAS_COMERCIAIS', 'DESPESAS_ADMINISTRATIVAS', 'DESPESAS_PESSOAL', 'OUTRAS_DESPESAS_OPERACIONAIS', 'EBITDA', 'DEPRECIACAO_AMORTIZACAO', 'EBIT', 'RECEITAS_FINANCEIRAS', 'DESPESAS_FINANCEIRAS', 'RESULTADO_FINANCEIRO', 'LAIR', 'IMPOSTOS_LUCRO', 'LUCRO_LIQUIDO');
-
--- CreateEnum
-CREATE TYPE "TipoCalculoDRE" AS ENUM ('SOMA', 'SUBTRACAO', 'FORMULA');
-
--- CreateEnum
-CREATE TYPE "PerfilUsuario" AS ENUM ('ADMIN', 'ENGENHARIA', 'FINANCEIRO', 'APROVADOR');
 
 -- CreateEnum
 CREATE TYPE "StatusUsuario" AS ENUM ('ATIVO', 'INATIVO');
@@ -196,6 +208,10 @@ CREATE TABLE "Obra" (
     "cno" TEXT,
     "art" TEXT,
     "alvara" TEXT,
+    "bdi" DECIMAL(5,2),
+    "encargos" DECIMAL(5,2),
+    "indiceReajuste" TEXT,
+    "periodicidadeMedicao" INTEGER,
     "recursoFinanceiro" TEXT,
     "fonteRecursoId" TEXT,
     "status" TEXT NOT NULL DEFAULT 'NAO_INICIADA',
@@ -312,17 +328,182 @@ CREATE TABLE "Operacao" (
     "id" TEXT NOT NULL,
     "codigo" TEXT NOT NULL,
     "construtoraId" TEXT NOT NULL,
-    "medicaoId" TEXT NOT NULL,
-    "valorSolicitado" DECIMAL(18,2) NOT NULL,
+    "obraId" TEXT NOT NULL,
+    "medicaoId" TEXT,
+    "tipo" "TipoOperacao" NOT NULL,
+    "dataReferencia" TIMESTAMP(3) NOT NULL,
+    "dataSolicitacao" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "dataFinalizacao" TIMESTAMP(3),
+    "dataAprovacao" TIMESTAMP(3),
+    "dataRejeicao" TIMESTAMP(3),
+    "dataPagamentoPrevista" TIMESTAMP(3),
+    "dataPagamentoEfetiva" TIMESTAMP(3),
+    "valorTotalOrdens" DECIMAL(18,2) NOT NULL,
     "taxaJurosMensal" DECIMAL(10,4) NOT NULL,
-    "taxaFlat" DECIMAL(10,4) NOT NULL,
+    "taxaAdministrativa" DECIMAL(10,4) NOT NULL,
+    "jurosProjetados" DECIMAL(18,2) NOT NULL,
+    "taxasAdministrativas" DECIMAL(18,2) NOT NULL,
     "valorDesagio" DECIMAL(18,2) NOT NULL,
-    "valorLiquido" DECIMAL(18,2) NOT NULL,
-    "dataOperacao" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "dataVencimento" TIMESTAMP(3) NOT NULL,
-    "status" TEXT NOT NULL,
+    "valorBruto" DECIMAL(18,2) NOT NULL,
+    "percentualDesagio" DECIMAL(5,2) NOT NULL,
+    "statusWorkflow" "StatusWorkflowOperacao" NOT NULL DEFAULT 'EM_EDICAO',
+    "statusFinanceiro" "StatusFinanceiroOperacao" NOT NULL DEFAULT 'ABERTO',
+    "exigeAprovacaoFiador" BOOLEAN NOT NULL DEFAULT false,
+    "aprovacaoFundoStatus" "StatusAprovacaoPapel" NOT NULL DEFAULT 'PENDENTE',
+    "aprovacaoFiadorStatus" "StatusAprovacaoPapel" NOT NULL DEFAULT 'PENDENTE',
+    "aprovacaoFundoData" TIMESTAMP(3),
+    "aprovacaoFiadorData" TIMESTAMP(3),
+    "aprovacaoFundoMotivo" TEXT,
+    "aprovacaoFiadorMotivo" TEXT,
+    "aprovacaoFundoPorId" TEXT,
+    "aprovacaoFiadorPorId" TEXT,
+    "aprovadorId" TEXT,
+    "motivoRejeicao" TEXT,
+    "operacoesRecompradas" JSONB,
+    "valorRecomprado" DECIMAL(18,2),
+    "statusRecompra" TEXT,
+    "saldoPerformadoConsumido" DECIMAL(18,2),
+    "nfNumero" TEXT,
+    "nfDataEmissao" TIMESTAMP(3),
+    "nfValorBruto" DECIMAL(18,2),
+    "nfRetencoes" DECIMAL(18,2),
+    "previsaoMedicaoId" TEXT,
+    "nfReferencia" TEXT,
+    "observacoes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Operacao_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SaldoPerformadoLancamento" (
+    "id" TEXT NOT NULL,
+    "construtoraId" TEXT NOT NULL,
+    "obraId" TEXT NOT NULL,
+    "tipo" "TipoLancamentoSaldoPerformado" NOT NULL,
+    "valor" DECIMAL(18,2) NOT NULL,
+    "saldoAposLancamento" DECIMAL(18,2),
+    "operacaoOrigemId" TEXT,
+    "operacaoDestinoId" TEXT,
+    "observacoes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "SaldoPerformadoLancamento_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SaldoPerformadoAlocacao" (
+    "id" TEXT NOT NULL,
+    "lancamentoCreditoId" TEXT NOT NULL,
+    "lancamentoDebitoId" TEXT NOT NULL,
+    "valorAlocado" DECIMAL(18,2) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "SaldoPerformadoAlocacao_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "OperacaoAprovacaoHistorico" (
+    "id" TEXT NOT NULL,
+    "operacaoId" TEXT NOT NULL,
+    "usuarioId" TEXT NOT NULL,
+    "papel" "PapelAprovacaoOperacao" NOT NULL,
+    "decisao" "StatusAprovacaoPapel" NOT NULL,
+    "motivo" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "OperacaoAprovacaoHistorico_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "OrdemPagamento" (
+    "id" TEXT NOT NULL,
+    "operacaoId" TEXT NOT NULL,
+    "credorId" TEXT,
+    "tipoDocumento" "TipoDocumentoOrdem" NOT NULL DEFAULT 'OUTRO',
+    "tipoDocumentoNome" TEXT,
+    "numeroDocumento" TEXT NOT NULL,
+    "valorTotal" DECIMAL(18,2) NOT NULL,
+    "tipoPagamento" "TipoPagamentoOrdem" NOT NULL,
+    "codigoBarras" TEXT,
+    "observacoes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "OrdemPagamento_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "RecompraOperacao" (
+    "id" TEXT NOT NULL,
+    "operacaoPerformadaId" TEXT NOT NULL,
+    "operacaoAPerformarId" TEXT NOT NULL,
+    "valorRecomprado" DECIMAL(18,2) NOT NULL,
+    "tipo" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "RecompraOperacao_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ApropriacaoOrcamentaria" (
+    "id" TEXT NOT NULL,
+    "ordemPagamentoId" TEXT NOT NULL,
+    "itemVisaoGerencialId" TEXT,
+    "subEtapaCodigo" TEXT NOT NULL,
+    "subEtapaDescricao" TEXT NOT NULL,
+    "etapaNome" TEXT NOT NULL,
+    "percentual" DECIMAL(5,2) NOT NULL,
+    "valor" DECIMAL(18,2) NOT NULL,
+    "percentualComprado" DECIMAL(5,2) NOT NULL DEFAULT 0,
+    "tipoCusto" "TipoCustoApropriacao" NOT NULL DEFAULT 'DIRETO',
+    "subcategoriaDireta" "SubcategoriaCustoDireto",
+    "itemCustoIndiretoId" TEXT,
+
+    CONSTRAINT "ApropriacaoOrcamentaria_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ItemCustoIndireto" (
+    "id" TEXT NOT NULL,
+    "construtoraId" TEXT NOT NULL,
+    "nome" TEXT NOT NULL,
+    "descricao" TEXT,
+    "ordem" INTEGER NOT NULL DEFAULT 0,
+    "ativo" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ItemCustoIndireto_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "DocumentoOrdem" (
+    "id" TEXT NOT NULL,
+    "ordemPagamentoId" TEXT NOT NULL,
+    "nomeArquivo" TEXT NOT NULL,
+    "caminhoArquivo" TEXT NOT NULL,
+    "tipoArquivo" TEXT NOT NULL,
+    "tamanhoBytes" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "DocumentoOrdem_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ConfiguracaoTaxas" (
+    "id" TEXT NOT NULL,
+    "construtoraId" TEXT NOT NULL,
+    "taxaJurosMensal" DECIMAL(10,4) NOT NULL,
+    "taxaAdministrativa" DECIMAL(10,4) NOT NULL,
+    "tipoTaxaAdministrativa" TEXT NOT NULL DEFAULT 'PERCENTUAL',
+    "limiteAPerformarMensal" DECIMAL(18,2),
+    "limitePerformadaMensal" DECIMAL(18,2),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ConfiguracaoTaxas_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -787,6 +968,20 @@ CREATE TABLE "Credor" (
 );
 
 -- CreateTable
+CREATE TABLE "TipoDocumento" (
+    "id" TEXT NOT NULL,
+    "construtoraId" TEXT NOT NULL,
+    "nome" TEXT NOT NULL,
+    "descricao" TEXT,
+    "ativo" BOOLEAN NOT NULL DEFAULT true,
+    "ordem" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "TipoDocumento_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "ContaBancaria" (
     "id" TEXT NOT NULL,
     "codigo" TEXT NOT NULL,
@@ -817,45 +1012,34 @@ CREATE TABLE "ContaBancaria" (
 );
 
 -- CreateTable
-CREATE TABLE "PlanoContas" (
+CREATE TABLE "perfis" (
     "id" TEXT NOT NULL,
-    "codigo" TEXT NOT NULL,
-    "construtoraId" TEXT NOT NULL,
     "nome" TEXT NOT NULL,
     "descricao" TEXT,
-    "isPadrao" BOOLEAN NOT NULL DEFAULT false,
-    "status" TEXT NOT NULL DEFAULT 'ATIVO',
-    "obraIds" JSONB,
+    "ativo" BOOLEAN NOT NULL DEFAULT true,
+    "tipoEscopo" TEXT NOT NULL DEFAULT 'GLOBAL',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "PlanoContas_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "perfis_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "ContaContabil" (
+CREATE TABLE "permissoes" (
     "id" TEXT NOT NULL,
-    "planoContasId" TEXT NOT NULL,
-    "codigo" TEXT NOT NULL,
-    "nivel" INTEGER NOT NULL,
-    "ordem" INTEGER NOT NULL,
-    "parentId" TEXT,
-    "nome" TEXT NOT NULL,
-    "descricao" TEXT,
-    "tipo" "TipoContaContabil" NOT NULL,
-    "natureza" "NaturezaConta" NOT NULL,
-    "aceitaLancamento" BOOLEAN NOT NULL DEFAULT true,
-    "categoriaDRE" "CategoriaDRE",
-    "tipoCalculo" "TipoCalculoDRE",
-    "formula" TEXT,
-    "categoria" TEXT,
-    "subcategoria" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'ATIVA',
-    "observacoes" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "chave" TEXT NOT NULL,
+    "descricao" TEXT NOT NULL,
+    "categoria" TEXT NOT NULL,
 
-    CONSTRAINT "ContaContabil_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "permissoes_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "perfis_permissoes" (
+    "perfilId" TEXT NOT NULL,
+    "permissaoId" TEXT NOT NULL,
+
+    CONSTRAINT "perfis_permissoes_pkey" PRIMARY KEY ("perfilId","permissaoId")
 );
 
 -- CreateTable
@@ -864,7 +1048,7 @@ CREATE TABLE "usuarios" (
     "nome" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "senha" TEXT,
-    "perfil" "PerfilUsuario" NOT NULL DEFAULT 'ENGENHARIA',
+    "perfilId" TEXT NOT NULL,
     "status" "StatusUsuario" NOT NULL DEFAULT 'ATIVO',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -873,22 +1057,35 @@ CREATE TABLE "usuarios" (
 );
 
 -- CreateTable
-CREATE TABLE "CentroCusto" (
-    "id" TEXT NOT NULL,
-    "codigo" TEXT NOT NULL,
-    "construtoraId" TEXT NOT NULL,
-    "nivel" INTEGER NOT NULL DEFAULT 0,
-    "parentId" TEXT,
-    "nome" TEXT NOT NULL,
-    "descricao" TEXT,
-    "obraIds" JSONB,
-    "tipo" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'ATIVO',
-    "observacoes" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+CREATE TABLE "usuarios_fundos" (
+    "usuarioId" TEXT NOT NULL,
+    "fundoId" TEXT NOT NULL,
 
-    CONSTRAINT "CentroCusto_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "usuarios_fundos_pkey" PRIMARY KEY ("usuarioId","fundoId")
+);
+
+-- CreateTable
+CREATE TABLE "usuarios_construtoras" (
+    "usuarioId" TEXT NOT NULL,
+    "construtoraId" TEXT NOT NULL,
+
+    CONSTRAINT "usuarios_construtoras_pkey" PRIMARY KEY ("usuarioId","construtoraId")
+);
+
+-- CreateTable
+CREATE TABLE "usuarios_fiadores_construtoras" (
+    "usuarioId" TEXT NOT NULL,
+    "construtoraId" TEXT NOT NULL,
+
+    CONSTRAINT "usuarios_fiadores_construtoras_pkey" PRIMARY KEY ("usuarioId","construtoraId")
+);
+
+-- CreateTable
+CREATE TABLE "usuarios_fiadores_obras" (
+    "usuarioId" TEXT NOT NULL,
+    "obraId" TEXT NOT NULL,
+
+    CONSTRAINT "usuarios_fiadores_obras_pkey" PRIMARY KEY ("usuarioId","obraId")
 );
 
 -- CreateIndex
@@ -935,6 +1132,81 @@ CREATE UNIQUE INDEX "VinculoFundo_obraId_key" ON "VinculoFundo"("obraId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Operacao_codigo_key" ON "Operacao"("codigo");
+
+-- CreateIndex
+CREATE INDEX "Operacao_construtoraId_idx" ON "Operacao"("construtoraId");
+
+-- CreateIndex
+CREATE INDEX "Operacao_obraId_idx" ON "Operacao"("obraId");
+
+-- CreateIndex
+CREATE INDEX "Operacao_statusWorkflow_idx" ON "Operacao"("statusWorkflow");
+
+-- CreateIndex
+CREATE INDEX "Operacao_statusFinanceiro_idx" ON "Operacao"("statusFinanceiro");
+
+-- CreateIndex
+CREATE INDEX "Operacao_tipo_idx" ON "Operacao"("tipo");
+
+-- CreateIndex
+CREATE INDEX "Operacao_aprovacaoFundoStatus_idx" ON "Operacao"("aprovacaoFundoStatus");
+
+-- CreateIndex
+CREATE INDEX "Operacao_aprovacaoFiadorStatus_idx" ON "Operacao"("aprovacaoFiadorStatus");
+
+-- CreateIndex
+CREATE INDEX "SaldoPerformadoLancamento_construtoraId_obraId_createdAt_idx" ON "SaldoPerformadoLancamento"("construtoraId", "obraId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "SaldoPerformadoLancamento_obraId_createdAt_idx" ON "SaldoPerformadoLancamento"("obraId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "SaldoPerformadoLancamento_operacaoOrigemId_idx" ON "SaldoPerformadoLancamento"("operacaoOrigemId");
+
+-- CreateIndex
+CREATE INDEX "SaldoPerformadoLancamento_operacaoDestinoId_idx" ON "SaldoPerformadoLancamento"("operacaoDestinoId");
+
+-- CreateIndex
+CREATE INDEX "SaldoPerformadoAlocacao_lancamentoCreditoId_idx" ON "SaldoPerformadoAlocacao"("lancamentoCreditoId");
+
+-- CreateIndex
+CREATE INDEX "SaldoPerformadoAlocacao_lancamentoDebitoId_idx" ON "SaldoPerformadoAlocacao"("lancamentoDebitoId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SaldoPerformadoAlocacao_lancamentoCreditoId_lancamentoDebit_key" ON "SaldoPerformadoAlocacao"("lancamentoCreditoId", "lancamentoDebitoId");
+
+-- CreateIndex
+CREATE INDEX "OperacaoAprovacaoHistorico_operacaoId_createdAt_idx" ON "OperacaoAprovacaoHistorico"("operacaoId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "OperacaoAprovacaoHistorico_usuarioId_idx" ON "OperacaoAprovacaoHistorico"("usuarioId");
+
+-- CreateIndex
+CREATE INDEX "OrdemPagamento_operacaoId_idx" ON "OrdemPagamento"("operacaoId");
+
+-- CreateIndex
+CREATE INDEX "OrdemPagamento_credorId_idx" ON "OrdemPagamento"("credorId");
+
+-- CreateIndex
+CREATE INDEX "RecompraOperacao_operacaoPerformadaId_idx" ON "RecompraOperacao"("operacaoPerformadaId");
+
+-- CreateIndex
+CREATE INDEX "RecompraOperacao_operacaoAPerformarId_idx" ON "RecompraOperacao"("operacaoAPerformarId");
+
+-- CreateIndex
+CREATE INDEX "ApropriacaoOrcamentaria_ordemPagamentoId_idx" ON "ApropriacaoOrcamentaria"("ordemPagamentoId");
+
+-- CreateIndex
+CREATE INDEX "ApropriacaoOrcamentaria_itemCustoIndiretoId_idx" ON "ApropriacaoOrcamentaria"("itemCustoIndiretoId");
+
+-- CreateIndex
+CREATE INDEX "ItemCustoIndireto_construtoraId_idx" ON "ItemCustoIndireto"("construtoraId");
+
+-- CreateIndex
+CREATE INDEX "DocumentoOrdem_ordemPagamentoId_idx" ON "DocumentoOrdem"("ordemPagamentoId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ConfiguracaoTaxas_construtoraId_key" ON "ConfiguracaoTaxas"("construtoraId");
 
 -- CreateIndex
 CREATE INDEX "VersaoOrcamento_obraId_status_idx" ON "VersaoOrcamento"("obraId", "status");
@@ -1174,6 +1446,15 @@ CREATE INDEX "Credor_cpfCnpj_idx" ON "Credor"("cpfCnpj");
 CREATE UNIQUE INDEX "Credor_construtoraId_cpfCnpj_key" ON "Credor"("construtoraId", "cpfCnpj");
 
 -- CreateIndex
+CREATE INDEX "TipoDocumento_construtoraId_idx" ON "TipoDocumento"("construtoraId");
+
+-- CreateIndex
+CREATE INDEX "TipoDocumento_construtoraId_ativo_idx" ON "TipoDocumento"("construtoraId", "ativo");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TipoDocumento_construtoraId_nome_key" ON "TipoDocumento"("construtoraId", "nome");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "ContaBancaria_codigo_key" ON "ContaBancaria"("codigo");
 
 -- CreateIndex
@@ -1186,52 +1467,13 @@ CREATE INDEX "ContaBancaria_construtoraId_status_idx" ON "ContaBancaria"("constr
 CREATE UNIQUE INDEX "ContaBancaria_construtoraId_banco_agencia_conta_key" ON "ContaBancaria"("construtoraId", "banco", "agencia", "conta");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PlanoContas_codigo_key" ON "PlanoContas"("codigo");
+CREATE UNIQUE INDEX "perfis_nome_key" ON "perfis"("nome");
 
 -- CreateIndex
-CREATE INDEX "PlanoContas_construtoraId_idx" ON "PlanoContas"("construtoraId");
-
--- CreateIndex
-CREATE INDEX "PlanoContas_construtoraId_isPadrao_idx" ON "PlanoContas"("construtoraId", "isPadrao");
-
--- CreateIndex
-CREATE INDEX "PlanoContas_construtoraId_status_idx" ON "PlanoContas"("construtoraId", "status");
-
--- CreateIndex
-CREATE INDEX "ContaContabil_planoContasId_idx" ON "ContaContabil"("planoContasId");
-
--- CreateIndex
-CREATE INDEX "ContaContabil_planoContasId_nivel_idx" ON "ContaContabil"("planoContasId", "nivel");
-
--- CreateIndex
-CREATE INDEX "ContaContabil_planoContasId_parentId_idx" ON "ContaContabil"("planoContasId", "parentId");
-
--- CreateIndex
-CREATE INDEX "ContaContabil_planoContasId_tipo_idx" ON "ContaContabil"("planoContasId", "tipo");
-
--- CreateIndex
-CREATE INDEX "ContaContabil_planoContasId_categoriaDRE_idx" ON "ContaContabil"("planoContasId", "categoriaDRE");
-
--- CreateIndex
-CREATE UNIQUE INDEX "ContaContabil_planoContasId_codigo_key" ON "ContaContabil"("planoContasId", "codigo");
+CREATE UNIQUE INDEX "permissoes_chave_key" ON "permissoes"("chave");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "usuarios_email_key" ON "usuarios"("email");
-
--- CreateIndex
-CREATE UNIQUE INDEX "CentroCusto_codigo_key" ON "CentroCusto"("codigo");
-
--- CreateIndex
-CREATE INDEX "CentroCusto_construtoraId_idx" ON "CentroCusto"("construtoraId");
-
--- CreateIndex
-CREATE INDEX "CentroCusto_construtoraId_status_idx" ON "CentroCusto"("construtoraId", "status");
-
--- CreateIndex
-CREATE INDEX "CentroCusto_parentId_idx" ON "CentroCusto"("parentId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "CentroCusto_construtoraId_codigo_key" ON "CentroCusto"("construtoraId", "codigo");
 
 -- AddForeignKey
 ALTER TABLE "Medicao" ADD CONSTRAINT "Medicao_obraId_fkey" FOREIGN KEY ("obraId") REFERENCES "Obra"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1276,7 +1518,76 @@ ALTER TABLE "VinculoBemGarantia" ADD CONSTRAINT "VinculoBemGarantia_bemId_fkey" 
 ALTER TABLE "Operacao" ADD CONSTRAINT "Operacao_construtoraId_fkey" FOREIGN KEY ("construtoraId") REFERENCES "Construtora"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Operacao" ADD CONSTRAINT "Operacao_medicaoId_fkey" FOREIGN KEY ("medicaoId") REFERENCES "Medicao"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Operacao" ADD CONSTRAINT "Operacao_obraId_fkey" FOREIGN KEY ("obraId") REFERENCES "Obra"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Operacao" ADD CONSTRAINT "Operacao_medicaoId_fkey" FOREIGN KEY ("medicaoId") REFERENCES "Medicao"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Operacao" ADD CONSTRAINT "Operacao_previsaoMedicaoId_fkey" FOREIGN KEY ("previsaoMedicaoId") REFERENCES "PrevisaoMedicao"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Operacao" ADD CONSTRAINT "Operacao_aprovadorId_fkey" FOREIGN KEY ("aprovadorId") REFERENCES "usuarios"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Operacao" ADD CONSTRAINT "Operacao_aprovacaoFundoPorId_fkey" FOREIGN KEY ("aprovacaoFundoPorId") REFERENCES "usuarios"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Operacao" ADD CONSTRAINT "Operacao_aprovacaoFiadorPorId_fkey" FOREIGN KEY ("aprovacaoFiadorPorId") REFERENCES "usuarios"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SaldoPerformadoLancamento" ADD CONSTRAINT "SaldoPerformadoLancamento_construtoraId_fkey" FOREIGN KEY ("construtoraId") REFERENCES "Construtora"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SaldoPerformadoLancamento" ADD CONSTRAINT "SaldoPerformadoLancamento_obraId_fkey" FOREIGN KEY ("obraId") REFERENCES "Obra"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SaldoPerformadoLancamento" ADD CONSTRAINT "SaldoPerformadoLancamento_operacaoOrigemId_fkey" FOREIGN KEY ("operacaoOrigemId") REFERENCES "Operacao"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SaldoPerformadoLancamento" ADD CONSTRAINT "SaldoPerformadoLancamento_operacaoDestinoId_fkey" FOREIGN KEY ("operacaoDestinoId") REFERENCES "Operacao"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SaldoPerformadoAlocacao" ADD CONSTRAINT "SaldoPerformadoAlocacao_lancamentoCreditoId_fkey" FOREIGN KEY ("lancamentoCreditoId") REFERENCES "SaldoPerformadoLancamento"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SaldoPerformadoAlocacao" ADD CONSTRAINT "SaldoPerformadoAlocacao_lancamentoDebitoId_fkey" FOREIGN KEY ("lancamentoDebitoId") REFERENCES "SaldoPerformadoLancamento"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OperacaoAprovacaoHistorico" ADD CONSTRAINT "OperacaoAprovacaoHistorico_operacaoId_fkey" FOREIGN KEY ("operacaoId") REFERENCES "Operacao"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OperacaoAprovacaoHistorico" ADD CONSTRAINT "OperacaoAprovacaoHistorico_usuarioId_fkey" FOREIGN KEY ("usuarioId") REFERENCES "usuarios"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrdemPagamento" ADD CONSTRAINT "OrdemPagamento_operacaoId_fkey" FOREIGN KEY ("operacaoId") REFERENCES "Operacao"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrdemPagamento" ADD CONSTRAINT "OrdemPagamento_credorId_fkey" FOREIGN KEY ("credorId") REFERENCES "Credor"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RecompraOperacao" ADD CONSTRAINT "RecompraOperacao_operacaoPerformadaId_fkey" FOREIGN KEY ("operacaoPerformadaId") REFERENCES "Operacao"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RecompraOperacao" ADD CONSTRAINT "RecompraOperacao_operacaoAPerformarId_fkey" FOREIGN KEY ("operacaoAPerformarId") REFERENCES "Operacao"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ApropriacaoOrcamentaria" ADD CONSTRAINT "ApropriacaoOrcamentaria_ordemPagamentoId_fkey" FOREIGN KEY ("ordemPagamentoId") REFERENCES "OrdemPagamento"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ApropriacaoOrcamentaria" ADD CONSTRAINT "ApropriacaoOrcamentaria_itemVisaoGerencialId_fkey" FOREIGN KEY ("itemVisaoGerencialId") REFERENCES "ItemVisaoGerencial"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ApropriacaoOrcamentaria" ADD CONSTRAINT "ApropriacaoOrcamentaria_itemCustoIndiretoId_fkey" FOREIGN KEY ("itemCustoIndiretoId") REFERENCES "ItemCustoIndireto"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ItemCustoIndireto" ADD CONSTRAINT "ItemCustoIndireto_construtoraId_fkey" FOREIGN KEY ("construtoraId") REFERENCES "Construtora"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DocumentoOrdem" ADD CONSTRAINT "DocumentoOrdem_ordemPagamentoId_fkey" FOREIGN KEY ("ordemPagamentoId") REFERENCES "OrdemPagamento"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ConfiguracaoTaxas" ADD CONSTRAINT "ConfiguracaoTaxas_construtoraId_fkey" FOREIGN KEY ("construtoraId") REFERENCES "Construtora"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Bem" ADD CONSTRAINT "Bem_fiadorId_fkey" FOREIGN KEY ("fiadorId") REFERENCES "Fiador"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1390,13 +1701,40 @@ ALTER TABLE "MapeamentoItemVersao" ADD CONSTRAINT "MapeamentoItemVersao_obraId_f
 ALTER TABLE "Credor" ADD CONSTRAINT "Credor_construtoraId_fkey" FOREIGN KEY ("construtoraId") REFERENCES "Construtora"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "TipoDocumento" ADD CONSTRAINT "TipoDocumento_construtoraId_fkey" FOREIGN KEY ("construtoraId") REFERENCES "Construtora"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "ContaBancaria" ADD CONSTRAINT "ContaBancaria_construtoraId_fkey" FOREIGN KEY ("construtoraId") REFERENCES "Construtora"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "PlanoContas" ADD CONSTRAINT "PlanoContas_construtoraId_fkey" FOREIGN KEY ("construtoraId") REFERENCES "Construtora"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "perfis_permissoes" ADD CONSTRAINT "perfis_permissoes_perfilId_fkey" FOREIGN KEY ("perfilId") REFERENCES "perfis"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ContaContabil" ADD CONSTRAINT "ContaContabil_planoContasId_fkey" FOREIGN KEY ("planoContasId") REFERENCES "PlanoContas"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "perfis_permissoes" ADD CONSTRAINT "perfis_permissoes_permissaoId_fkey" FOREIGN KEY ("permissaoId") REFERENCES "permissoes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CentroCusto" ADD CONSTRAINT "CentroCusto_construtoraId_fkey" FOREIGN KEY ("construtoraId") REFERENCES "Construtora"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "usuarios" ADD CONSTRAINT "usuarios_perfilId_fkey" FOREIGN KEY ("perfilId") REFERENCES "perfis"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "usuarios_fundos" ADD CONSTRAINT "usuarios_fundos_usuarioId_fkey" FOREIGN KEY ("usuarioId") REFERENCES "usuarios"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "usuarios_fundos" ADD CONSTRAINT "usuarios_fundos_fundoId_fkey" FOREIGN KEY ("fundoId") REFERENCES "Fundo"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "usuarios_construtoras" ADD CONSTRAINT "usuarios_construtoras_usuarioId_fkey" FOREIGN KEY ("usuarioId") REFERENCES "usuarios"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "usuarios_construtoras" ADD CONSTRAINT "usuarios_construtoras_construtoraId_fkey" FOREIGN KEY ("construtoraId") REFERENCES "Construtora"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "usuarios_fiadores_construtoras" ADD CONSTRAINT "usuarios_fiadores_construtoras_usuarioId_fkey" FOREIGN KEY ("usuarioId") REFERENCES "usuarios"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "usuarios_fiadores_construtoras" ADD CONSTRAINT "usuarios_fiadores_construtoras_construtoraId_fkey" FOREIGN KEY ("construtoraId") REFERENCES "Construtora"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "usuarios_fiadores_obras" ADD CONSTRAINT "usuarios_fiadores_obras_usuarioId_fkey" FOREIGN KEY ("usuarioId") REFERENCES "usuarios"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "usuarios_fiadores_obras" ADD CONSTRAINT "usuarios_fiadores_obras_obraId_fkey" FOREIGN KEY ("obraId") REFERENCES "Obra"("id") ON DELETE CASCADE ON UPDATE CASCADE;

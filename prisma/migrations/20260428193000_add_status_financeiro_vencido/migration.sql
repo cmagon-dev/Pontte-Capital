@@ -1,1 +1,0 @@
-ALTER TYPE "StatusFinanceiroOperacao" ADD VALUE IF NOT EXISTS 'VENCIDO';
