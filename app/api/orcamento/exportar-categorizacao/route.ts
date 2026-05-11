@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Buscar categorização (versão específica ou versão ativa)
-    const resultado = versaoId 
+    const resultado = versaoId
       ? await buscarCategorizacao(obraId, versaoId)
       : await buscarCategorizacao(obraId);
 
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     // Criar mapa de itens
     resultado.itens.forEach((item: typeof resultado.itens[0]) => {
       itensMap.set(item.itemId, { ...item, filhos: [] });
-      
+
       if (item.parentId) {
         if (!filhosMap.has(item.parentId)) {
           filhosMap.set(item.parentId, []);

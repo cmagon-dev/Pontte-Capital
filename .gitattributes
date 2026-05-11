@@ -1,0 +1,4 @@
+# Evita CRLF no working copy em TypeScript (comum com core.autocrlf=true no Windows)
+# e reduz abas “sujas” / realces verdes por divergência de fim de linha.
+*.ts text eol=lf
+*.tsx text eol=lf

@@ -1,4 +1,6 @@
 {
+  "files.eol": "\n",
+  "npm.autoDetect": "off",
   "css.lint.unknownAtRules": "ignore",
   "css.validate": true,
   "tailwindCSS.experimental.classRegex": [
