@@ -3,6 +3,9 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { getObraScopeFilter } from '@/lib/scope';
 
 // Função para gerar o próximo código de obra por construtora
 async function gerarProximoCodigoObra(construtoraId: string) {
@@ -175,7 +178,11 @@ export async function criarObra(data: any) {
 
 export async function listarObras() {
   try {
+    const session = await getServerSession(authOptions);
+    const scopeFilter = session ? getObraScopeFilter(session) : { id: '__nenhum__' };
+
     const obras = await db.obra.findMany({
+      where: scopeFilter,
       orderBy: { createdAt: 'desc' },
       include: {
         construtora: {
@@ -382,6 +389,34 @@ export async function atualizarObra(id: string, data: any) {
       success: false,
       message: `Erro ao atualizar: ${error?.message || "Erro interno do servidor"}`,
     };
+  }
+}
+
+export async function atualizarParametrosFinanceiros(
+  obraId: string,
+  dados: {
+    bdi?: number | null;
+    encargos?: number | null;
+    indiceReajuste?: string | null;
+    periodicidadeMedicao?: number | null;
+  }
+) {
+  try {
+    const obra = await db.obra.update({
+      where: { id: obraId },
+      data: {
+        bdi: dados.bdi != null ? dados.bdi : null,
+        encargos: dados.encargos != null ? dados.encargos : null,
+        indiceReajuste: dados.indiceReajuste ?? null,
+        periodicidadeMedicao: dados.periodicidadeMedicao ?? null,
+      },
+    });
+
+    revalidatePath(`/eng/plan-medicoes`);
+    return { success: true, data: obra };
+  } catch (error: any) {
+    console.error('🔥 ERRO AO ATUALIZAR PARÂMETROS FINANCEIROS:', error);
+    return { success: false, message: error?.message || 'Erro ao salvar parâmetros.' };
   }
 }
 

@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
 import {
   LayoutDashboard,
   Building2,
@@ -11,11 +12,9 @@ import {
   Hammer,
   DollarSign,
   FileText,
-  Settings,
   ChevronDown,
   ChevronRight,
   TrendingUp,
-  Calendar,
   Receipt,
   BarChart3,
   ClipboardList,
@@ -25,12 +24,17 @@ import {
   CheckCircle2,
   Landmark,
   Camera,
+  LogOut,
+  ShieldCheck,
+  Settings,
 } from 'lucide-react';
+import type { ChavePermissao } from '@/lib/permissoes';
 
 interface MenuItem {
   label: string;
   href?: string;
   icon: React.ReactNode;
+  permissao?: ChavePermissao;
   children?: MenuItem[];
 }
 
@@ -39,10 +43,12 @@ const menuItems: MenuItem[] = [
     label: 'Dashboard',
     href: '/dashboard',
     icon: <LayoutDashboard className="w-5 h-5" />,
+    permissao: 'dashboard:ver',
   },
   {
     label: 'Cadastros',
     icon: <Building2 className="w-5 h-5" />,
+    permissao: 'cadastros:ver',
     children: [
       { label: 'Fundos (Cessionários)', href: '/cadastros/fundos', icon: <FolderKanban className="w-4 h-4" /> },
       { label: 'Construtoras (Cedentes)', href: '/cadastros/construtoras', icon: <Building2 className="w-4 h-4" /> },
@@ -54,37 +60,19 @@ const menuItems: MenuItem[] = [
   {
     label: 'Engenharia',
     icon: <Hammer className="w-5 h-5" />,
+    permissao: 'eng:ver',
     children: [
-      {
-        label: 'Contratos',
-        href: '/eng/contratos/contratos-obras',
-        icon: <FileText className="w-4 h-4" />,
-      },
-      {
-        label: 'Orçamento',
-        href: '/eng/orcamento',
-        icon: <DollarSign className="w-4 h-4" />,
-      },
-      {
-        label: 'Plan. & Medições',
-        href: '/eng/plan-medicoes',
-        icon: <ClipboardList className="w-4 h-4" />,
-      },
-      {
-        label: 'Acompanhamento',
-        href: '/eng/acompanhamento',
-        icon: <BarChart3 className="w-4 h-4" />,
-      },
-      {
-        label: 'Registros 360º',
-        href: '/eng/registros-360',
-        icon: <Camera className="w-4 h-4" />,
-      },
+      { label: 'Contratos', href: '/eng/contratos/contratos-obras', icon: <FileText className="w-4 h-4" /> },
+      { label: 'Orçamento', href: '/eng/orcamento', icon: <DollarSign className="w-4 h-4" /> },
+      { label: 'Plan. & Medições', href: '/eng/plan-medicoes', icon: <ClipboardList className="w-4 h-4" /> },
+      { label: 'Acompanhamento', href: '/eng/acompanhamento', icon: <BarChart3 className="w-4 h-4" /> },
+      { label: 'Registros 360º', href: '/eng/registros-360', icon: <Camera className="w-4 h-4" /> },
     ],
   },
   {
     label: 'Financeiro',
     icon: <DollarSign className="w-5 h-5" />,
+    permissao: 'fin:ver',
     children: [
       { label: 'Cadastros', href: '/fin/cadastros', icon: <Building2 className="w-4 h-4" /> },
       { label: 'Operações', href: '/fin/operacoes', icon: <Wallet className="w-4 h-4" /> },
@@ -96,16 +84,64 @@ const menuItems: MenuItem[] = [
     label: 'Aprovações',
     icon: <CheckCircle2 className="w-5 h-5" />,
     children: [
-      { label: 'Contratos', href: '/aprovacoes/contratos', icon: <FileText className="w-4 h-4" /> },
-      { label: 'Engenharia', href: '/aprovacoes/engenharia', icon: <Hammer className="w-4 h-4" /> },
-      { label: 'Financeiro', href: '/aprovacoes/financeiro', icon: <DollarSign className="w-4 h-4" /> },
+      {
+        label: 'Contratos',
+        href: '/aprovacoes/contratos',
+        icon: <FileText className="w-4 h-4" />,
+      },
+      {
+        label: 'Engenharia (Técnica)',
+        href: '/aprovacoes/engenharia',
+        icon: <Hammer className="w-4 h-4" />,
+        permissao: 'aprovacoes:engenharia:ver',
+      },
+      {
+        label: 'Financeiro (Fundo)',
+        href: '/aprovacoes/financeiro',
+        icon: <DollarSign className="w-4 h-4" />,
+        permissao: 'aprovacoes:financeiro:ver',
+      },
+    ],
+  },
+  {
+    label: 'Admin',
+    icon: <Settings className="w-5 h-5" />,
+    permissao: 'admin:ver',
+    children: [
+      {
+        label: 'Usuários',
+        href: '/admin/usuarios',
+        icon: <Users className="w-4 h-4" />,
+        permissao: 'admin:usuarios:gerenciar',
+      },
+      {
+        label: 'Perfis e Permissões',
+        href: '/admin/parametros/perfis',
+        icon: <ShieldCheck className="w-4 h-4" />,
+        permissao: 'admin:perfis:gerenciar',
+      },
     ],
   },
 ];
 
+function filterMenuItems(items: MenuItem[], permissoes: string[]): MenuItem[] {
+  return items
+    .filter((item) => !item.permissao || permissoes.includes(item.permissao))
+    .map((item) => ({
+      ...item,
+      children: item.children ? filterMenuItems(item.children, permissoes) : undefined,
+    }))
+    .filter((item) => !item.children || item.children.length > 0 || item.href);
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { data: session } = useSession();
   const [openMenus, setOpenMenus] = useState<string[]>([]);
+
+  const permissoes = session?.user?.permissoes ?? [];
+  const visibleItems = filterMenuItems(menuItems, permissoes);
 
   const toggleMenu = (key: string) => {
     setOpenMenus((prev) =>
@@ -213,9 +249,32 @@ export default function Sidebar() {
 
       <nav className="flex-1 overflow-y-auto p-4">
         <ul className="space-y-1">
-          {menuItems.map((item) => renderMenuItem(item, 0))}
+          {visibleItems.map((item) => renderMenuItem(item, 0))}
         </ul>
       </nav>
+
+      {session?.user && (
+        <div className="p-4 border-t border-slate-800 flex-shrink-0">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-bold text-slate-300 uppercase">
+                {session.user.name?.charAt(0) ?? '?'}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">{session.user.name}</p>
+              <p className="text-xs text-slate-400 truncate">{session.user.perfilNome}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="w-full flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors text-sm"
+          >
+            <LogOut className="w-4 h-4" />
+            Sair
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

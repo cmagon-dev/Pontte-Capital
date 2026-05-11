@@ -10,7 +10,7 @@ export type OperationType = 'TO_PERFORM' | 'PERFORMED';
 export type WorkflowStatus = 'EM_EDICAO' | 'FINALIZADA' | 'EM_APROVACAO' | 'APROVADA' | 'REJEITADA';
 
 // Status financeiro
-export type FinancialStatus = 'ABERTO' | 'LIQUIDADO';
+export type FinancialStatus = 'ABERTO' | 'VENCIDO' | 'LIQUIDADO';
 
 // Apropriação orçamentária (Visão Gerencial - obrigatório no nível SUBETAPA)
 export interface BudgetAppropriation {
@@ -22,14 +22,12 @@ export interface BudgetAppropriation {
   valor: number; // Valor calculado (principal * percentual / 100)
 }
 
-// Apropriação financeira (Plano de Contas)
-export interface FinancialAppropriation {
-  contaId: string;
-  contaCodigo: string;
-  contaNome: string;
-  percentual: number; // Percentual de apropriação (deve somar 100%)
-  valor: number; // Valor calculado (principal * percentual / 100)
-}
+export const SUBCATEGORIAS_DIRETAS_LABELS: Record<string, string> = {
+  MATERIAL: 'Material',
+  MAO_OBRA_SUB: 'MO Subempreitada',
+  CONTRATOS: 'Contratos (MAT+MO)',
+  EQUIP_FRETE: 'Equip. e Fretes',
+};
 
 // Credor/Fornecedor
 export interface Credor {
@@ -83,7 +81,6 @@ export interface Operation {
   
   // Apropriações (obrigatórias - devem somar 100% cada)
   apropriacoesOrcamentarias: BudgetAppropriation[]; // Visão Gerencial - nível SUBETAPA
-  apropriacoesFinanceiras: FinancialAppropriation[]; // Plano de Contas
   
   // Dados de aprovação
   dataAprovacao?: string;
@@ -159,14 +156,6 @@ export function calcularProjecaoEncargos(
  * Valida se a soma das apropriações orçamentárias é 100%
  */
 export function validarApropriacoesOrcamentarias(apropriacoes: BudgetAppropriation[]): boolean {
-  const total = apropriacoes.reduce((sum, ap) => sum + ap.percentual, 0);
-  return Math.abs(total - 100) < 0.01; // Tolerância de 0.01%
-}
-
-/**
- * Valida se a soma das apropriações financeiras é 100%
- */
-export function validarApropriacoesFinanceiras(apropriacoes: FinancialAppropriation[]): boolean {
   const total = apropriacoes.reduce((sum, ap) => sum + ap.percentual, 0);
   return Math.abs(total - 100) < 0.01; // Tolerância de 0.01%
 }

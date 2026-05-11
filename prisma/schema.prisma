@@ -35,8 +35,12 @@ model Construtora {
   // Cadastros Financeiros
   credores          Credor[]
   contasBancarias   ContaBancaria[]
-  planosContas      PlanoContas[]
-  centrosCusto      CentroCusto[]
+  configTaxas       ConfiguracaoTaxas?
+  itensCustoIndireto ItemCustoIndireto[]
+  tiposDocumento    TipoDocumento[]
+  usuariosVinculados UsuarioConstrutora[] // Usuários da construtora
+  usuariosFiadoresVinculados UsuarioFiadorConstrutora[] // Usuários do fiador com escopo por construtora
+  lancamentosSaldoPerformado SaldoPerformadoLancamento[]
 }
 
 model Fundo {
@@ -57,7 +61,8 @@ model Fundo {
   socios            Json?
   telefone          String?
   documentos        Documento[]
-  vinculosObras     VinculoFundo[] // Vínculos com obras
+  vinculosObras     VinculoFundo[]  // Vínculos com obras
+  usuariosVinculados UsuarioFundo[] // Usuários do fundo
 }
 
 model Fiador {
@@ -170,6 +175,11 @@ model Obra {
   cno                   String? // Cadastro Nacional de Obras
   art                   String? // Anotação de Responsabilidade Técnica
   alvara                String? // Alvará da obra
+  // Parâmetros Financeiros
+  bdi                   Decimal?               @db.Decimal(5, 2) // BDI em % (ex: 25.00)
+  encargos              Decimal?               @db.Decimal(5, 2) // Encargos sociais em % (ex: 118.00)
+  indiceReajuste        String?                // Índice padrão: INCC, IPCA, IGPM, INPC
+  periodicidadeMedicao  Int?                   // Periodicidade das medições em meses (ex: 1)
   // Recurso Financeiro
   recursoFinanceiro     String? // Campo legado (será removido)
   fonteRecursoId        String? // ID da fonte de recurso (FK)
@@ -197,6 +207,9 @@ model Obra {
   previsoesMedicao      PrevisaoMedicao[] // Previsões de medição
   historicoVersoesMedicao HistoricoVersaoMedicao[] // Histórico de versões de medição
   mapeamentosItemVersao MapeamentoItemVersao[] // Mapeamentos de itens entre versões
+  operacoes             Operacao[] // Operações financeiras vinculadas
+  lancamentosSaldoPerformado SaldoPerformadoLancamento[]
+  usuariosFiadoresVinculados UsuarioFiadorObra[] // Usuários do fiador com escopo por obra
 }
 
 // Aditivos Contratuais
@@ -325,21 +338,331 @@ model VinculoBemGarantia {
   bem             Bem           @relation(fields: [bemId], references: [id])
 }
 
+// --------------------------------------------------------
+// OPERAÇÕES FINANCEIRAS — Modelo Dual Tranche
+// --------------------------------------------------------
+
+enum TipoOperacao {
+  A_PERFORMAR
+  PERFORMADA
+  SALDO_PERFORMADO
+}
+
+enum TipoLancamentoSaldoPerformado {
+  CREDITO
+  DEBITO
+  AJUSTE_CREDITO
+  AJUSTE_DEBITO
+}
+
+enum StatusWorkflowOperacao {
+  EM_EDICAO
+  FINALIZADA
+  EM_APROVACAO
+  APROVADA
+  REJEITADA
+}
+
+enum StatusFinanceiroOperacao {
+  ABERTO
+  VENCIDO
+  LIQUIDADO
+}
+
+enum PapelAprovacaoOperacao {
+  FUNDO
+  FIADOR
+}
+
+enum StatusAprovacaoPapel {
+  PENDENTE
+  APROVADA
+  REJEITADA
+}
+
+enum TipoPagamentoOrdem {
+  PIX
+  TED
+  BOLETO
+  CARTAO
+}
+
+enum TipoDocumentoOrdem {
+  NOTA_FISCAL
+  PEDIDO_COMPRA
+  CONTRATO
+  RECIBO
+  OUTRO
+}
+
+
 model Operacao {
-  id              String      @id @default(uuid())
-  codigo          String      @unique
-  construtoraId   String
-  medicaoId       String
-  valorSolicitado Decimal     @db.Decimal(18, 2)
-  taxaJurosMensal Decimal     @db.Decimal(10, 4)
-  taxaFlat        Decimal     @db.Decimal(10, 4)
-  valorDesagio    Decimal     @db.Decimal(18, 2)
-  valorLiquido    Decimal     @db.Decimal(18, 2)
-  dataOperacao    DateTime    @default(now())
-  dataVencimento  DateTime
-  status          String
-  construtora     Construtora @relation(fields: [construtoraId], references: [id])
-  medicao         Medicao     @relation(fields: [medicaoId], references: [id])
+  id                     String                   @id @default(uuid())
+  codigo                 String                   @unique
+
+  construtoraId          String
+  obraId                 String
+  medicaoId              String?
+
+  tipo                   TipoOperacao
+
+  dataReferencia         DateTime
+  dataSolicitacao        DateTime                 @default(now())
+  dataFinalizacao        DateTime?
+  dataAprovacao          DateTime?
+  dataRejeicao           DateTime?
+  dataPagamentoPrevista  DateTime?
+  dataPagamentoEfetiva   DateTime?
+
+  valorTotalOrdens       Decimal                  @db.Decimal(18, 2)
+  taxaJurosMensal        Decimal                  @db.Decimal(10, 4)
+  taxaAdministrativa     Decimal                  @db.Decimal(10, 4)
+  jurosProjetados        Decimal                  @db.Decimal(18, 2)
+  taxasAdministrativas   Decimal                  @db.Decimal(18, 2)
+  valorDesagio           Decimal                  @db.Decimal(18, 2)
+  valorBruto             Decimal                  @db.Decimal(18, 2)
+  percentualDesagio      Decimal                  @db.Decimal(5, 2)
+
+  statusWorkflow         StatusWorkflowOperacao   @default(EM_EDICAO)
+  statusFinanceiro       StatusFinanceiroOperacao @default(ABERTO)
+  exigeAprovacaoFiador   Boolean                  @default(false)
+  aprovacaoFundoStatus   StatusAprovacaoPapel     @default(PENDENTE)
+  aprovacaoFiadorStatus  StatusAprovacaoPapel     @default(PENDENTE)
+  aprovacaoFundoData     DateTime?
+  aprovacaoFiadorData    DateTime?
+  aprovacaoFundoMotivo   String?                  @db.Text
+  aprovacaoFiadorMotivo  String?                  @db.Text
+  aprovacaoFundoPorId    String?
+  aprovacaoFiadorPorId   String?
+
+  aprovadorId            String?
+  motivoRejeicao         String?                  @db.Text
+
+  operacoesRecompradas   Json?
+
+  // Rastreamento de recompra (para ops À Performar)
+  valorRecomprado          Decimal?  @db.Decimal(18, 2)
+  statusRecompra           String?   // PENDENTE | PARCIAL | TOTAL
+
+  // Saldo performado consumido ao criar uma À Performar
+  saldoPerformadoConsumido Decimal?  @db.Decimal(18, 2)
+
+  // Dados da NF (para ops Performadas)
+  nfNumero                 String?
+  nfDataEmissao            DateTime?
+  nfValorBruto             Decimal?  @db.Decimal(18, 2)
+  nfRetencoes              Decimal?  @db.Decimal(18, 2)
+
+  // Referência à PrevisaoMedicao do módulo de engenharia (para ops Performadas)
+  previsaoMedicaoId        String?
+
+  // Descrição de referência da NF (para reajuste/complemento, sem medição)
+  nfReferencia             String?
+
+  observacoes            String?                  @db.Text
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+
+  construtora            Construtora              @relation(fields: [construtoraId], references: [id])
+  obra                   Obra                     @relation(fields: [obraId], references: [id])
+  medicao                Medicao?                 @relation(fields: [medicaoId], references: [id])
+  previsaoMedicao        PrevisaoMedicao?         @relation("OperacoesPerformadas", fields: [previsaoMedicaoId], references: [id])
+  aprovador              Usuario?                 @relation("OperacoesAprovadas", fields: [aprovadorId], references: [id])
+  aprovadorFundo         Usuario?                 @relation("OperacoesAprovadasFundo", fields: [aprovacaoFundoPorId], references: [id])
+  aprovadorFiador        Usuario?                 @relation("OperacoesAprovadasFiador", fields: [aprovacaoFiadorPorId], references: [id])
+  ordens                 OrdemPagamento[]
+  recomprasEmitidas      RecompraOperacao[]       @relation("RecomprasEmitidas")
+  recomprasRecebidas     RecompraOperacao[]       @relation("RecomprasRecebidas")
+  historicoAprovacoes    OperacaoAprovacaoHistorico[]
+  lancamentosOrigemSaldo SaldoPerformadoLancamento[] @relation("LancamentoSaldoOrigem")
+  lancamentosDestinoSaldo SaldoPerformadoLancamento[] @relation("LancamentoSaldoDestino")
+
+  @@index([construtoraId])
+  @@index([obraId])
+  @@index([statusWorkflow])
+  @@index([statusFinanceiro])
+  @@index([tipo])
+  @@index([aprovacaoFundoStatus])
+  @@index([aprovacaoFiadorStatus])
+}
+
+model SaldoPerformadoLancamento {
+  id                  String                       @id @default(uuid())
+  construtoraId       String
+  obraId              String
+  tipo                TipoLancamentoSaldoPerformado
+  valor               Decimal                      @db.Decimal(18, 2)
+  saldoAposLancamento Decimal?                     @db.Decimal(18, 2)
+  operacaoOrigemId    String?
+  operacaoDestinoId   String?
+  observacoes         String?                      @db.Text
+  createdAt           DateTime                     @default(now())
+
+  construtora         Construtora                  @relation(fields: [construtoraId], references: [id], onDelete: Cascade)
+  obra                Obra                         @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  operacaoOrigem      Operacao?                    @relation("LancamentoSaldoOrigem", fields: [operacaoOrigemId], references: [id], onDelete: SetNull)
+  operacaoDestino     Operacao?                    @relation("LancamentoSaldoDestino", fields: [operacaoDestinoId], references: [id], onDelete: SetNull)
+  alocacoesCredito    SaldoPerformadoAlocacao[]    @relation("AlocacaoCredito")
+  alocacoesDebito     SaldoPerformadoAlocacao[]    @relation("AlocacaoDebito")
+
+  @@index([construtoraId, obraId, createdAt])
+  @@index([obraId, createdAt])
+  @@index([operacaoOrigemId])
+  @@index([operacaoDestinoId])
+}
+
+model SaldoPerformadoAlocacao {
+  id                   String                    @id @default(uuid())
+  lancamentoCreditoId  String
+  lancamentoDebitoId   String
+  valorAlocado         Decimal                   @db.Decimal(18, 2)
+  createdAt            DateTime                  @default(now())
+
+  lancamentoCredito    SaldoPerformadoLancamento @relation("AlocacaoCredito", fields: [lancamentoCreditoId], references: [id], onDelete: Cascade)
+  lancamentoDebito     SaldoPerformadoLancamento @relation("AlocacaoDebito", fields: [lancamentoDebitoId], references: [id], onDelete: Cascade)
+
+  @@index([lancamentoCreditoId])
+  @@index([lancamentoDebitoId])
+  @@unique([lancamentoCreditoId, lancamentoDebitoId])
+}
+
+model OperacaoAprovacaoHistorico {
+  id         String                @id @default(uuid())
+  operacaoId String
+  usuarioId  String
+  papel      PapelAprovacaoOperacao
+  decisao    StatusAprovacaoPapel
+  motivo     String?               @db.Text
+  createdAt  DateTime              @default(now())
+
+  operacao   Operacao              @relation(fields: [operacaoId], references: [id], onDelete: Cascade)
+  usuario    Usuario               @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([operacaoId, createdAt])
+  @@index([usuarioId])
+}
+
+model OrdemPagamento {
+  id               String             @id @default(uuid())
+  operacaoId       String
+  credorId         String?
+
+  tipoDocumento    TipoDocumentoOrdem @default(OUTRO)
+  tipoDocumentoNome String?
+  numeroDocumento  String
+  valorTotal       Decimal            @db.Decimal(18, 2)
+  tipoPagamento    TipoPagamentoOrdem
+  codigoBarras     String?
+  observacoes      String?            @db.Text
+
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  operacao         Operacao           @relation(fields: [operacaoId], references: [id], onDelete: Cascade)
+  credor           Credor?            @relation(fields: [credorId], references: [id])
+  apropriacoesOrcamentarias ApropriacaoOrcamentaria[]
+  documentos                DocumentoOrdem[]
+
+  @@index([operacaoId])
+  @@index([credorId])
+}
+
+model RecompraOperacao {
+  id                    String   @id @default(uuid())
+  operacaoPerformadaId  String
+  operacaoAPerformarId  String
+  valorRecomprado       Decimal  @db.Decimal(18, 2)
+  tipo                  String   // TOTAL | PARCIAL
+  createdAt             DateTime @default(now())
+
+  operacaoPerformada   Operacao @relation("RecomprasEmitidas",  fields: [operacaoPerformadaId], references: [id], onDelete: Cascade)
+  operacaoAPerformar   Operacao @relation("RecomprasRecebidas", fields: [operacaoAPerformarId],  references: [id])
+
+  @@index([operacaoPerformadaId])
+  @@index([operacaoAPerformarId])
+}
+
+model ApropriacaoOrcamentaria {
+  id                   String          @id @default(uuid())
+  ordemPagamentoId     String
+  itemVisaoGerencialId String?
+
+  subEtapaCodigo       String
+  subEtapaDescricao    String
+  etapaNome            String
+
+  percentual           Decimal         @db.Decimal(5, 2)
+  valor                Decimal         @db.Decimal(18, 2)
+  percentualComprado   Decimal         @default(0) @db.Decimal(5, 2)
+
+  tipoCusto            TipoCustoApropriacao @default(DIRETO)
+  subcategoriaDireta   SubcategoriaCustoDireto?
+  itemCustoIndiretoId  String?
+
+  ordemPagamento       OrdemPagamento      @relation(fields: [ordemPagamentoId], references: [id], onDelete: Cascade)
+  itemVisaoGerencial   ItemVisaoGerencial? @relation(fields: [itemVisaoGerencialId], references: [id])
+  itemCustoIndireto    ItemCustoIndireto?  @relation(fields: [itemCustoIndiretoId], references: [id])
+
+  @@index([ordemPagamentoId])
+  @@index([itemCustoIndiretoId])
+}
+
+model ItemCustoIndireto {
+  id            String      @id @default(uuid())
+  construtoraId String
+  nome          String
+  descricao     String?
+  ordem         Int         @default(0)
+  ativo         Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  construtora   Construtora @relation(fields: [construtoraId], references: [id], onDelete: Cascade)
+  apropriacoes  ApropriacaoOrcamentaria[]
+
+  @@index([construtoraId])
+}
+
+enum TipoCustoApropriacao {
+  DIRETO
+  INDIRETO
+}
+
+enum SubcategoriaCustoDireto {
+  MATERIAL
+  MAO_OBRA_SUB
+  CONTRATOS
+  EQUIP_FRETE
+}
+
+model DocumentoOrdem {
+  id               String         @id @default(uuid())
+  ordemPagamentoId String
+  nomeArquivo      String
+  caminhoArquivo   String
+  tipoArquivo      String
+  tamanhoBytes     Int
+
+  createdAt        DateTime       @default(now())
+  ordemPagamento   OrdemPagamento @relation(fields: [ordemPagamentoId], references: [id], onDelete: Cascade)
+
+  @@index([ordemPagamentoId])
+}
+
+model ConfiguracaoTaxas {
+  id                      String      @id @default(uuid())
+  construtoraId           String      @unique
+
+  taxaJurosMensal         Decimal     @db.Decimal(10, 4)
+  taxaAdministrativa      Decimal     @db.Decimal(10, 4)
+  tipoTaxaAdministrativa  String      @default("PERCENTUAL")
+
+  limiteAPerformarMensal  Decimal?    @db.Decimal(18, 2)
+  limitePerformadaMensal  Decimal?    @db.Decimal(18, 2)
+
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+  construtora             Construtora @relation(fields: [construtoraId], references: [id], onDelete: Cascade)
 }
 
 // --------------------------------------------------------
@@ -635,6 +958,7 @@ model ItemVisaoGerencial {
   // Relações
   versaoVisaoGerencial   VersaoVisaoGerencial        @relation(fields: [versaoVisaoGerencialId], references: [id], onDelete: Cascade)
   vinculosItens          VinculoItemVisaoGerencial[] @relation("ItemVisaoGerencialVinculos") // Vínculos com itens da planilha de custos
+  apropriacoesOrcamentarias ApropriacaoOrcamentaria[] // Apropriações de operações financeiras
 
   @@unique([versaoVisaoGerencialId, codigo]) // Garantir que o código seja único por versão
   @@index([versaoVisaoGerencialId]) // Query de itens por versão
@@ -843,7 +1167,8 @@ model PrevisaoMedicao {
   obra          Obra                    @relation(fields: [obraId], references: [id], onDelete: Cascade)
   itens         ItemPrevisaoMedicao[] // Itens medidos
   versaoReferencia VersaoOrcamento? @relation("MedicaoVersaoReferencia", fields: [versaoReferenciaId], references: [id])
-  
+  operacoesPerformadas Operacao[]    @relation("OperacoesPerformadas")
+
   @@unique([obraId, numero]) // Garantir que o número seja único por obra
   @@index([obraId])
   @@index([obraId, status])
@@ -1044,6 +1369,7 @@ model Credor {
   
   // Relações
   construtora       Construtora @relation(fields: [construtoraId], references: [id], onDelete: Cascade)
+  ordens            OrdemPagamento[]
   
   @@unique([construtoraId, cpfCnpj]) // Não pode haver CPF/CNPJ duplicado na mesma construtora
   @@index([construtoraId])
@@ -1056,6 +1382,24 @@ enum TipoCredor {
   FORNECEDOR
   EMPREITEIRO
   FUNCIONARIO
+}
+
+// Tipos de Documento para Ordens de Pagamento
+model TipoDocumento {
+  id            String      @id @default(uuid())
+  construtoraId String
+  nome          String
+  descricao     String?
+  ativo         Boolean     @default(true)
+  ordem         Int         @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  construtora   Construtora @relation(fields: [construtoraId], references: [id], onDelete: Cascade)
+
+  @@unique([construtoraId, nome])
+  @@index([construtoraId])
+  @@index([construtoraId, ativo])
 }
 
 // Contas Bancárias
@@ -1107,159 +1451,111 @@ model ContaBancaria {
   @@index([construtoraId, status])
 }
 
-// Plano de Contas (Estrutura DRE)
-model PlanoContas {
-  id                String    @id @default(uuid())
-  codigo            String    @unique // PLANO-001, PLANO-002, etc
-  construtoraId     String
-  
-  // Identificação
-  nome              String    // Nome do plano (ex: "DRE Padrão", "DRE Obra XYZ")
-  descricao         String?   @db.Text
-  
-  // Configurações
-  isPadrao          Boolean   @default(false) // Apenas 1 padrão por construtora
-  status            String    @default("ATIVO") // ATIVO, INATIVO
-  
-  // Vinculação
-  obraIds           Json?     // Array de IDs de obras vinculadas (desnormalizado)
-  
-  // Auditoria
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  
-  // Relações
-  construtora       Construtora @relation(fields: [construtoraId], references: [id], onDelete: Cascade)
-  contas            ContaContabil[] // Contas do plano
-  
-  @@index([construtoraId])
-  @@index([construtoraId, isPadrao])
-  @@index([construtoraId, status])
+
+// --------------------------------------------------------
+// USUÁRIOS E AUTENTICAÇÃO
+// --------------------------------------------------------
+
+enum StatusUsuario {
+  ATIVO
+  INATIVO
 }
 
-model ContaContabil {
-  id                String    @id @default(uuid())
-  planoContasId     String
-  
-  // Hierarquia
-  codigo            String    // Ex: "1", "1.1", "1.1.1", "1.1.1.1"
-  nivel             Int       // 0, 1, 2, 3 (máximo 4 níveis)
-  ordem             Int       // Ordem de exibição (respeitando ordem da DRE)
-  parentId          String?   // ID da conta pai (null para raiz)
-  
-  // Identificação
-  nome              String    // Nome da conta
-  descricao         String?   @db.Text
-  
-  // Configurações
-  tipo              TipoContaContabil // ANALITICA, SINTETICA, LINHA_RESULTADO
-  natureza          NaturezaConta // DEVEDORA, CREDORA
-  aceitaLancamento  Boolean   @default(true) // Contas sintéticas e linhas de resultado não aceitam
-  
-  // Classificação DRE
-  categoriaDRE      CategoriaDRE? // Categoria na estrutura da DRE
-  tipoCalculo       TipoCalculoDRE? // Como calcular (SOMA, SUBTRACAO, FORMULA)
-  formula           String?   @db.Text // Fórmula de cálculo (ex: "3.1 - 3.2 - 3.3")
-  
-  // Classificação tradicional (compatibilidade)
-  categoria         String?   // RECEITA, CUSTO, DESPESA
-  subcategoria      String?   // OPERACIONAL, FINANCEIRO, etc
-  
-  // Status
-  status            String    @default("ATIVA") // ATIVA, INATIVA
-  
-  // Observações
-  observacoes       String?   @db.Text
-  
-  // Auditoria
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  
-  // Relações
-  planoContas       PlanoContas @relation(fields: [planoContasId], references: [id], onDelete: Cascade)
-  
-  @@unique([planoContasId, codigo]) // Código único dentro do plano
-  @@index([planoContasId])
-  @@index([planoContasId, nivel])
-  @@index([planoContasId, parentId])
-  @@index([planoContasId, tipo])
-  @@index([planoContasId, categoriaDRE])
+model Perfil {
+  id          String            @id @default(uuid())
+  nome        String            @unique
+  descricao   String?
+  ativo       Boolean           @default(true)
+  tipoEscopo  String            @default("GLOBAL") // GLOBAL | FUNDO | CONSTRUTORA | FIADOR
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  permissoes  PerfilPermissao[]
+  usuarios    Usuario[]
+
+  @@map("perfis")
 }
 
-enum TipoContaContabil {
-  ANALITICA         // Aceita lançamentos (contas detalhadas)
-  SINTETICA         // Totaliza outras contas (não aceita lançamentos)
-  LINHA_RESULTADO   // Linha de resultado calculada (Lucro Bruto, EBITDA, etc)
+model Permissao {
+  id        String            @id @default(uuid())
+  chave     String            @unique
+  descricao String
+  categoria String
+  perfis    PerfilPermissao[]
+
+  @@map("permissoes")
 }
 
-enum NaturezaConta {
-  DEVEDORA
-  CREDORA
+model PerfilPermissao {
+  perfilId    String
+  permissaoId String
+  perfil      Perfil    @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+  permissao   Permissao @relation(fields: [permissaoId], references: [id], onDelete: Cascade)
+
+  @@id([perfilId, permissaoId])
+  @@map("perfis_permissoes")
 }
 
-enum CategoriaDRE {
-  RECEITA_BRUTA
-  DEDUCOES_RECEITA
-  RECEITA_LIQUIDA        // Linha resultado
-  CUSTO_SERVICOS
-  LUCRO_BRUTO           // Linha resultado
-  DESPESAS_COMERCIAIS
-  DESPESAS_ADMINISTRATIVAS
-  DESPESAS_PESSOAL
-  OUTRAS_DESPESAS_OPERACIONAIS
-  EBITDA                // Linha resultado
-  DEPRECIACAO_AMORTIZACAO
-  EBIT                  // Linha resultado (Lucro Operacional)
-  RECEITAS_FINANCEIRAS
-  DESPESAS_FINANCEIRAS
-  RESULTADO_FINANCEIRO   // Linha resultado
-  LAIR                  // Linha resultado (Lucro antes IR)
-  IMPOSTOS_LUCRO
-  LUCRO_LIQUIDO         // Linha resultado final
+model Usuario {
+  id                     String               @id @default(uuid())
+  nome                   String
+  email                  String               @unique
+  senha                  String?
+  perfilId               String
+  status                 StatusUsuario        @default(ATIVO)
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  perfil                 Perfil               @relation(fields: [perfilId], references: [id])
+  operacoesAprovadas     Operacao[]           @relation("OperacoesAprovadas")
+  operacoesAprovadasFundo Operacao[]          @relation("OperacoesAprovadasFundo")
+  operacoesAprovadasFiador Operacao[]         @relation("OperacoesAprovadasFiador")
+  historicoAprovacoesOperacao OperacaoAprovacaoHistorico[]
+  fundosVinculados       UsuarioFundo[]
+  construtorasVinculadas UsuarioConstrutora[]
+  fiadorConstrutorasVinculadas UsuarioFiadorConstrutora[]
+  fiadorObrasVinculadas  UsuarioFiadorObra[]
+
+  @@map("usuarios")
 }
 
-enum TipoCalculoDRE {
-  SOMA          // Soma das contas filhas
-  SUBTRACAO     // Subtração das contas filhas
-  FORMULA       // Usa fórmula customizada
+model UsuarioFundo {
+  usuarioId  String
+  fundoId    String
+  usuario    Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  fundo      Fundo   @relation(fields: [fundoId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, fundoId])
+  @@map("usuarios_fundos")
+}
+
+model UsuarioConstrutora {
+  usuarioId     String
+  construtoraId String
+  usuario       Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  construtora   Construtora @relation(fields: [construtoraId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, construtoraId])
+  @@map("usuarios_construtoras")
+}
+
+model UsuarioFiadorConstrutora {
+  usuarioId     String
+  construtoraId String
+  usuario       Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  construtora   Construtora @relation(fields: [construtoraId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, construtoraId])
+  @@map("usuarios_fiadores_construtoras")
+}
+
+model UsuarioFiadorObra {
+  usuarioId String
+  obraId    String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  obra      Obra    @relation(fields: [obraId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, obraId])
+  @@map("usuarios_fiadores_obras")
 }
 
 // Centro de Custo
-model CentroCusto {
-  id                String    @id @default(uuid())
-  codigo            String    @unique // CC-001, CC-002, etc
-  construtoraId     String
-  
-  // Hierarquia (opcional)
-  nivel             Int       @default(0) // 0, 1, 2
-  parentId          String?   // ID do centro de custo pai
-  
-  // Identificação
-  nome              String
-  descricao         String?   @db.Text
-  
-  // Vinculação
-  obraIds           Json?     // Array de IDs de obras vinculadas
-  
-  // Configurações
-  tipo              String?   // ADMINISTRATIVO, OBRA, DEPARTAMENTO, etc
-  
-  // Status
-  status            String    @default("ATIVO") // ATIVO, INATIVO
-  
-  // Observações
-  observacoes       String?   @db.Text
-  
-  // Auditoria
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  
-  // Relações
-  construtora       Construtora @relation(fields: [construtoraId], references: [id], onDelete: Cascade)
-  
-  @@unique([construtoraId, codigo]) // Código único por construtora
-  @@index([construtoraId])
-  @@index([construtoraId, status])
-  @@index([parentId])
-}
 
