@@ -113,12 +113,23 @@ Plano de teste para quando a UI existir:
 - [x] `docs/operacoes-roadmap.md` — PR-zero marcado como Merged, PR1 como Em andamento, link para este arquivo.
 - [x] `docs/operacoes-decisoes.md` — ADR-007 adicionado explicando o baseline das migrations.
 
-### 7. Commit & push 🚧
+### 7. Commit & push ✅
 
-- [ ] `git add -A` (incluindo migrations novas, schema, actions, telas, docs)
-- [ ] Commit único no padrão: `feat(operacoes): adiciona aprovacao tecnica como etapa do workflow`
-- [ ] `git push -u origin feature/operacoes-pr1-workflow-tecnico`
-- [ ] (Opcional) Abrir PR no GitHub se quiser revisar visualmente antes do merge
+- [x] Commit `eec6fc1`: `feat(operacoes): adiciona aprovacao tecnica como etapa do workflow` (15 arquivos, +852/-280).
+- [x] Branch `feature/operacoes-pr1-workflow-tecnico` pushada para `origin`.
+- [ ] (Opcional) Abrir PR no GitHub: https://github.com/cmagon-dev/Pontte-Capital/pull/new/feature/operacoes-pr1-workflow-tecnico
+
+---
+
+## Resumo final
+
+**Status:** ✅ PR1 Concluído (aguardando merge)
+
+- Schema, migrations e server actions prontos para a aprovação técnica.
+- Backend completo e validado. UI ainda usando elementos mínimos (apenas labels), pois a fila técnica dedicada vem no PR2.
+- Banco Neon foi resetado e está limpo com seed (usuários, perfis, 1 construtora, credores).
+
+**Próximos passos sugeridos:** PR2 — Aba "Operações" na fila técnica (`/aprovacoes/engenharia/`).
 
 ---
 
