@@ -9,8 +9,8 @@
 | Fase | PR | Título | Status | Tamanho est. | Dependência | Link |
 |---|---|---|---|---|---|---|
 | 0 | PR-zero | Documentos de especificação | ✅ Merged | docs only | — | commit `8610c5d` |
-| 1 | PR1 | Schema + workflow técnico (aprovação Pontte) | 🚧 Em andamento | ~400 LOC | PR-zero | branch `feature/operacoes-pr1-workflow-tecnico` |
-| 2 | PR2 | Aba "Operações" na fila técnica | 📋 Planejado | ~250 LOC | PR1 | — |
+| 1 | PR1 | Schema + workflow técnico (aprovação Pontte) | ✅ Pronto p/ merge | ~400 LOC | PR-zero | branch `feature/operacoes-pr1-workflow-tecnico` |
+| 2 | PR2 | Aba "Operações" na fila técnica | 🚧 Em andamento | ~250 LOC | PR1 | branch `feature/operacoes-pr2-fila-tecnica` |
 | 3a | PR3a | Análise técnica — aba **EAP comparativo** | 📋 Planejado | ~350 LOC | PR2 | — |
 | 3b | PR3b | Análise técnica — aba **Contrato & Empenho** | 📋 Planejado | ~250 LOC | PR2 | — |
 | 3c | PR3c | Análise técnica — aba **Compliance Fiscal** | 📋 Planejado | ~200 LOC | PR2 | — |
@@ -46,9 +46,10 @@
 
 ### PR1 — Schema + workflow técnico (aprovação Pontte)
 
-**Status:** 🚧 Em andamento (branch `feature/operacoes-pr1-workflow-tecnico`)
+**Status:** ✅ Pronto para merge (branch `feature/operacoes-pr1-workflow-tecnico`)
 
 > Detalhe da execução: `docs/prs/pr1-workflow-tecnico.md`.
+> Smoke test: `scripts/smoke-test-operacoes.ts` (28 checks dedicados ao PR1, todos OK).
 
 **Entrega:**
 - Aprovação técnica passa a existir como etapa formal entre construtora e Fundo/Fiador.

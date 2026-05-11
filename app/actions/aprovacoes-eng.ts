@@ -3,7 +3,7 @@
 import { db } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getMedicaoScopeFilter } from '@/lib/scope';
+import { getMedicaoScopeFilter, getOperacaoScopeFilter } from '@/lib/scope';
 import { revalidatePath } from 'next/cache';
 
 export async function listarMedicoesParaAprovacao() {
@@ -30,6 +30,36 @@ export async function listarMedicoesParaAprovacao() {
     orderBy: { periodoFim: 'desc' },
   });
   return medicoes;
+}
+
+/**
+ * Lista operacoes em EM_APROVACAO_TECNICA visiveis ao usuario logado.
+ * Restricao de permissao: a pagina que a usa exige `aprovacoes:engenharia:aprovar`;
+ * aqui retornamos vazio se nao houver sessao (a tela ja faz o gate).
+ */
+export async function listarOperacoesParaAprovacaoTecnica() {
+  const session = await getServerSession(authOptions);
+  if (!session) return [];
+
+  const scopeFilter = getOperacaoScopeFilter(session);
+
+  return db.operacao.findMany({
+    where: {
+      statusWorkflow: 'EM_APROVACAO_TECNICA',
+      ...scopeFilter,
+    },
+    include: {
+      construtora: { select: { id: true, razaoSocial: true, cnpj: true } },
+      obra: { select: { id: true, codigo: true, nome: true } },
+      ordens: {
+        select: {
+          id: true,
+          credor: { select: { nome: true } },
+        },
+      },
+    },
+    orderBy: { dataSolicitacao: 'desc' },
+  });
 }
 
 export async function aprovarMedicao(id: string) {

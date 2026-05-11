@@ -1,15 +1,17 @@
 /**
- * Smoke test do PR1 - Aprovacao Tecnica
+ * Smoke test do modulo de Operacoes Financeiras
  *
- * Roda com:  npx tsx scripts/smoke-test-pr1.ts
+ * Roda com:  npx tsx scripts/smoke-test-operacoes.ts
  *
- * Valida em 3 partes:
- *  A) Schema do banco (colunas, enums, FK, indices)
- *  B) Seed (usuarios e permissoes esperados)
- *  C) Fluxo end-to-end (cria uma operacao dummy e percorre os estados)
- *     ATENCAO: a parte C simula o que as server actions fazem via queries
- *     diretas no Prisma; nao chama as actions reais (que dependem de
- *     getServerSession). Para teste real das actions, aguardar PR2 com UI.
+ * Cobertura por PR (cresce com cada PR novo):
+ *  A) PR1 - Schema do banco (colunas, enums, FK, indices)
+ *  B) PR1 - Seed (usuarios e permissoes esperados)
+ *  C) PR1 - Fluxo end-to-end de aprovacao (estados)
+ *  D) PR2 - Fila tecnica: query de listagem retorna apenas EM_APROVACAO_TECNICA
+ *
+ * ATENCAO: as partes que envolvem actions simulam o comportamento via queries
+ * Prisma diretas; nao chamam as server actions reais (que dependem de
+ * getServerSession). Para teste real end-to-end via HTTP, fazer manual no browser.
  *
  * No final, limpa o que criou.
  */
@@ -281,15 +283,123 @@ async function partC() {
 }
 
 // ============================================================================
+// Parte D — Fila tecnica (PR2): query listagem retorna apenas EM_APROVACAO_TECNICA
+// ============================================================================
+
+async function partD() {
+  section('D) Fila tecnica - listagem (PR2)');
+
+  const construtora = await db.construtora.findFirst();
+  if (!construtora) {
+    check('Construtora encontrada', false);
+    return;
+  }
+
+  let obra = await db.obra.findFirst({ where: { construtoraId: construtora.id } });
+  let obraCriada = false;
+  if (!obra) {
+    obra = await db.obra.create({
+      data: {
+        construtoraId: construtora.id,
+        codigo: 'OBRA-SMOKE-PR2',
+        nome: 'Obra Smoke Test PR2',
+        valorContrato: 500000,
+        status: 'ATIVA',
+      },
+    });
+    obraCriada = true;
+  }
+
+  // Cria 3 operacoes em estados diferentes
+  const opEdicao = await db.operacao.create({
+    data: {
+      construtoraId: construtora.id,
+      obraId: obra.id,
+      codigo: `SMOKE-D-EDIC-${Date.now()}`,
+      tipo: 'A_PERFORMAR',
+      dataReferencia: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      valorTotalOrdens: 1000,
+      taxaJurosMensal: 0.015,
+      taxaAdministrativa: 0.005,
+      jurosProjetados: 15,
+      taxasAdministrativas: 5,
+      valorDesagio: 20,
+      valorBruto: 1020,
+      percentualDesagio: 2,
+      statusWorkflow: 'EM_EDICAO',
+    },
+  });
+  const opTecnica = await db.operacao.create({
+    data: {
+      construtoraId: construtora.id,
+      obraId: obra.id,
+      codigo: `SMOKE-D-TECN-${Date.now()}`,
+      tipo: 'A_PERFORMAR',
+      dataReferencia: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      valorTotalOrdens: 2000,
+      taxaJurosMensal: 0.015,
+      taxaAdministrativa: 0.005,
+      jurosProjetados: 30,
+      taxasAdministrativas: 10,
+      valorDesagio: 40,
+      valorBruto: 2040,
+      percentualDesagio: 2,
+      statusWorkflow: 'EM_APROVACAO_TECNICA',
+      aprovacaoTecnicaStatus: 'PENDENTE',
+    },
+  });
+  const opFinanceira = await db.operacao.create({
+    data: {
+      construtoraId: construtora.id,
+      obraId: obra.id,
+      codigo: `SMOKE-D-FIN-${Date.now()}`,
+      tipo: 'A_PERFORMAR',
+      dataReferencia: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      valorTotalOrdens: 3000,
+      taxaJurosMensal: 0.015,
+      taxaAdministrativa: 0.005,
+      jurosProjetados: 45,
+      taxasAdministrativas: 15,
+      valorDesagio: 60,
+      valorBruto: 3060,
+      percentualDesagio: 2,
+      statusWorkflow: 'EM_APROVACAO_FINANCEIRA',
+      aprovacaoTecnicaStatus: 'APROVADA',
+      aprovacaoFundoStatus: 'PENDENTE',
+    },
+  });
+
+  // Simula a query que o listarOperacoesParaAprovacaoTecnica faz (GLOBAL scope)
+  const filaTecnica = await db.operacao.findMany({
+    where: { statusWorkflow: 'EM_APROVACAO_TECNICA' },
+    select: { id: true, codigo: true },
+  });
+  const ids = new Set(filaTecnica.map((o) => o.id));
+  check('Operacao em EM_APROVACAO_TECNICA aparece na fila', ids.has(opTecnica.id));
+  check('Operacao em EM_EDICAO NAO aparece na fila', !ids.has(opEdicao.id));
+  check('Operacao em EM_APROVACAO_FINANCEIRA NAO aparece na fila', !ids.has(opFinanceira.id));
+
+  // Cleanup
+  await db.operacao.deleteMany({
+    where: { id: { in: [opEdicao.id, opTecnica.id, opFinanceira.id] } },
+  });
+  if (obraCriada) {
+    await db.obra.delete({ where: { id: obra.id } });
+  }
+  check('Cleanup D: operacoes removidas', true);
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
 async function main() {
-  console.log(`${c.bold}Smoke test PR1 - Aprovacao Tecnica${c.reset}\n`);
+  console.log(`${c.bold}Smoke test PR1 + PR2 - Aprovacao Tecnica${c.reset}\n`);
   try {
     await partA();
     await partB();
     await partC();
+    await partD();
   } catch (err) {
     fail++;
     console.error(`\n${c.red}Erro inesperado:${c.reset}`, err);
