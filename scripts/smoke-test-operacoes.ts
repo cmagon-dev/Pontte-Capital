@@ -149,12 +149,22 @@ async function partB() {
 async function partC() {
   section('C) Fluxo end-to-end (simulado)');
 
-  const construtora = await db.construtora.findFirst();
+  // Garante uma construtora dummy. Como o seed nao cria mais dados de negocio,
+  // o smoke test precisa criar e limpar o que usa.
+  let construtora = await db.construtora.findFirst({ where: { codigo: 'SMOKE-CONS' } });
+  let construtoraCriada = false;
   if (!construtora) {
-    check('Construtora de seed encontrada', false, 'rodar prisma db seed primeiro');
-    return;
+    construtora = await db.construtora.create({
+      data: {
+        codigo: 'SMOKE-CONS',
+        razaoSocial: 'Construtora Smoke Test Ltda',
+        cnpj: '99999999000199',
+        nomeFantasia: 'Smoke Test',
+      },
+    });
+    construtoraCriada = true;
   }
-  check('Construtora encontrada', true, construtora.razaoSocial);
+  check('Construtora disponivel', !!construtora, construtora.razaoSocial);
 
   // Garante uma obra dummy
   let obra = await db.obra.findFirst({ where: { construtoraId: construtora.id } });
@@ -279,7 +289,10 @@ async function partC() {
   if (obraCriada) {
     await db.obra.delete({ where: { id: obra.id } });
   }
-  check('Cleanup: operacao e historico removidos', true);
+  if (construtoraCriada) {
+    await db.construtora.delete({ where: { id: construtora.id } });
+  }
+  check('Cleanup: operacao, obra, construtora e historico removidos', true);
 }
 
 // ============================================================================
@@ -289,10 +302,18 @@ async function partC() {
 async function partD() {
   section('D) Fila tecnica - listagem (PR2)');
 
-  const construtora = await db.construtora.findFirst();
+  let construtora = await db.construtora.findFirst({ where: { codigo: 'SMOKE-CONS-D' } });
+  let construtoraCriada = false;
   if (!construtora) {
-    check('Construtora encontrada', false);
-    return;
+    construtora = await db.construtora.create({
+      data: {
+        codigo: 'SMOKE-CONS-D',
+        razaoSocial: 'Construtora Smoke D Ltda',
+        cnpj: '99999999000200',
+        nomeFantasia: 'Smoke Test D',
+      },
+    });
+    construtoraCriada = true;
   }
 
   let obra = await db.obra.findFirst({ where: { construtoraId: construtora.id } });
@@ -386,7 +407,10 @@ async function partD() {
   if (obraCriada) {
     await db.obra.delete({ where: { id: obra.id } });
   }
-  check('Cleanup D: operacoes removidas', true);
+  if (construtoraCriada) {
+    await db.construtora.delete({ where: { id: construtora.id } });
+  }
+  check('Cleanup D: operacoes, obra e construtora removidas', true);
 }
 
 // ============================================================================

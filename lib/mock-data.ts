@@ -1,7 +1,23 @@
 /**
- * Dados Mockados Centralizados - Pontte Capital
- * Este arquivo contém TODOS os dados de exemplo do sistema
- * Facilita alterações e mantém consistência
+ * @deprecated
+ *
+ * Dados Mockados Centralizados — LEGADO.
+ *
+ * Este arquivo NÃO é mais a fonte de verdade do sistema. Ele é mantido
+ * temporariamente apenas porque algumas telas antigas (principalmente
+ * /eng/acompanhamento e /fin/acompanhamento) ainda dependem destes mocks
+ * para renderizar.
+ *
+ * **Não importe daqui em código novo.** Use as server actions do Prisma:
+ *  - `app/actions/obras.ts`
+ *  - `app/actions/construtoras.ts`
+ *  - `app/actions/credores.ts`
+ *  - etc.
+ *
+ * Plano de remoção: este arquivo será apagado quando as telas listadas
+ * em `lib/MOCK_DATA_README.md` migrarem para dados reais do banco.
+ *
+ * NÃO adicione novos mocks aqui.
  */
 
 // ============================================

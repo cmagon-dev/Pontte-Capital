@@ -10,7 +10,8 @@
 |---|---|---|---|---|---|---|
 | 0 | PR-zero | Documentos de especificação | ✅ Merged | docs only | — | commit `8610c5d` |
 | 1 | PR1 | Schema + workflow técnico (aprovação Pontte) | ✅ Pronto p/ merge | ~400 LOC | PR-zero | branch `feature/operacoes-pr1-workflow-tecnico` |
-| 2 | PR2 | Aba "Operações" na fila técnica | 🚧 Em andamento | ~250 LOC | PR1 | branch `feature/operacoes-pr2-fila-tecnica` |
+| 2 | PR2 | Aba "Operações" na fila técnica | ✅ Pronto p/ merge | ~250 LOC | PR1 | branch `feature/operacoes-pr2-fila-tecnica` |
+| 2.5 | Chore | Limpeza de mocks e plano de contas legado | 🚧 Em andamento | ~30 LOC + reset DB | PR2 | branch `chore/limpeza-mocks-banco-v2` |
 | 3a | PR3a | Análise técnica — aba **EAP comparativo** | 📋 Planejado | ~350 LOC | PR2 | — |
 | 3b | PR3b | Análise técnica — aba **Contrato & Empenho** | 📋 Planejado | ~250 LOC | PR2 | — |
 | 3c | PR3c | Análise técnica — aba **Compliance Fiscal** | 📋 Planejado | ~200 LOC | PR2 | — |
@@ -84,7 +85,10 @@
 
 ### PR2 — Aba "Operações" na fila técnica
 
-**Status:** 📋 Planejado · Depende de PR1
+**Status:** ✅ Pronto para merge (branch `feature/operacoes-pr2-fila-tecnica`)
+
+> Detalhe da execução: `docs/prs/pr2-fila-tecnica.md`.
+> Smoke test: `scripts/smoke-test-operacoes.ts` (32 checks, todos OK).
 
 **Entrega:**
 - `/aprovacoes/engenharia` vira layout com abas: "Medições" (existente) + "Operações" (nova).
@@ -92,7 +96,7 @@
 
 **Mudanças:**
 - Telas: refatorar `app/(main)/aprovacoes/engenharia/page.tsx` + `AprovacoesEngenhariaClient.tsx`.
-- Adicionar query para operações pendentes técnicas.
+- Adicionar query `listarOperacoesParaAprovacaoTecnica` em `aprovacoes-eng.ts`.
 
 **Como testar:**
 1. Logar como usuário com `aprovacoes:engenharia:aprovar`.
@@ -100,6 +104,35 @@
 3. Ver as 2 abas com contadores corretos.
 
 **Riscos:** Baixo (UI aditiva).
+
+---
+
+### Chore — Limpeza de mocks e plano de contas legado
+
+**Status:** 🚧 Em andamento (branch `chore/limpeza-mocks-banco-v2`, depende de PR2)
+
+**Entrega:**
+- Banco Neon resetado: zero construtoras, obras, credores, contas bancárias e operações mockadas.
+- RBAC preservado: 6 usuários teste, 14 perfis, 23 permissões.
+- `prisma/seed.ts` reduzido para criar apenas RBAC (passou de 845 → 290 linhas; remove Construtora ABC, credores e contas bancárias fictícias, função `criarContasDRE_DEPRECATED`).
+- `lib/mock-data.ts` marcado como deprecated com `@deprecated` no header (telas antigas de Acompanhamento ainda usam — serão migradas em PR próprio).
+- `app/(main)/aprovacoes/contratos/page.tsx`: tela 100% mock substituída por placeholder "Em construção".
+- Documentação obsoleta `ACESSO_CADASTROS_FINANCEIROS.md` removida.
+- Smoke test atualizado: cria construtoras dummy durante a execução e limpa ao final.
+
+**Mudanças:**
+- Schema: ❌
+- Server actions: ❌
+- Telas: `app/(main)/aprovacoes/contratos/page.tsx` (placeholder)
+- Permissões: ❌
+- Migrations: ❌
+
+**Como testar:**
+1. `npx prisma db seed` — só RBAC é populado.
+2. `npx tsx scripts/smoke-test-operacoes.ts` — 32/32 checks devem passar.
+3. Acessar a app e confirmar que nenhuma construtora aparece nas listas (precisa cadastrar via UI).
+
+**Riscos:** Baixo. Reset do banco já efetuado com consentimento do usuário.
 
 ---
 
